@@ -1,0 +1,186 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <title>Template</title>
+    <style>
+      canvas {
+		position: absolute;
+		top: 0px;
+		left: 0px;
+	}
+    </style>
+  </head>
+  <body onload="init()">
+    
+    
+    <canvas id="bgLayer" width="1280" height="720"></canvas>
+    <canvas id="playerLayer" width="1280" height="720"></canvas>
+	<canvas id="uiLayer" width="1280" height="720" onmousemove="getMousePos(event)" onmousedown="mouseDown(event)" onmouseup="mouseUp(event)"></canvas>
+<script src="js/jquery-3.2.1.min.js"></script>
+<script>
+	
+//Canvas
+var bCanvas = document.getElementById('bgLayer');
+var bCtx = bCanvas.getContext("2d");
+var pCanvas = document.getElementById('playerLayer');
+var pCtx = pCanvas.getContext("2d");
+var uCanvas = document.getElementById('uiLayer');
+var uCtx = uCanvas.getContext("2d");
+console.log("Canvas Created");
+
+//Keys
+document.body.addEventListener("keydown", keyDown, false);
+document.body.addEventListener("keyup", keyUp, false);
+
+//Variables, lots of variables
+
+
+
+//How many pixels per refresh the map moves
+var dirh = 0;
+var dirv = 0;
+
+//Create entities
+var player = new Player();
+console.log("Player initialized");
+
+var world = new World();
+console.log("World initialized");
+
+var ui = new UI();
+console.log("UI initialized");
+
+window.addEventListener('resize', resize);
+
+function resize(){
+	windowWidth = window.innerWidth || document.body.clientWidth;
+	windowHeight =  window.innerHeight || document.body.clientHeight;
+	
+	bCanvas.width = windowWidth; //Change canvas size to window size
+	pCanvas.width = windowWidth;
+	uCanvas.width = windowWidth;
+	bCanvas.height = windowHeight;
+	pCanvas.height = windowHeight;
+	uCanvas.height = windowHeight;
+
+	$("body").css("overflow", "hidden");
+	
+}
+
+
+//Happens when page loads
+function init(){
+	resize();
+	requestAnimationFrame(update);
+	console.log("First Refresh");
+}
+
+function update(){
+	world.update();
+	player.update();
+	ui.update();
+	requestAnimationFrame(update);
+}
+
+function World() {
+	
+	World.prototype.update = function(){
+ 	
+	}
+}
+
+function Player(){
+	Player.prototype.update = function(){
+		
+	}
+}
+
+function UI(){
+	this.mouseX;
+	this.mouseY;
+	this.mousePressed = false;
+	this.click = false;
+	UI.prototype.update = function(){
+		this.click = false; //True for one frame after player releases mouse
+	}
+}
+
+
+function keyDown(evt){
+  evt.preventDefault();
+  set(evt.keyCode);
+	evt.stopPropagation();
+	return;
+}
+
+function keyUp(evt){
+  evt.preventDefault();
+  unSet(evt.keyCode);
+	evt.stopPropagation();
+	return;
+}
+
+function set(key){
+	//W
+	if(key == 87){
+		dirv = -3;
+	}
+	//A
+	if(key == 65){
+		dirh = -3;
+	}
+	//S
+	if(key == 83){
+		dirv = 3;
+	}
+	//D
+	if(key == 68){
+		dirh = 3;
+	}
+}
+
+function unSet(key){
+	//W
+	if(key == 87){
+		dirv = 0;
+	}
+	//A
+	if(key == 65){
+		dirh = 0;
+	}
+	//S
+	if(key == 83){
+		dirv = 0;
+	}
+	//D
+	if(key == 68){
+		dirh = 0;
+	}
+}
+
+//mouse stuff
+
+function getMousePos(evt) {
+	var rect = bCanvas.getBoundingClientRect();
+
+	ui.mouseX = evt.clientX - rect.left;
+	ui.mouseY = evt.clientY - rect.top;
+
+}
+
+
+//mouse clicked event listeners
+
+function mouseDown(evt){
+	ui.mousePressed = true;
+}
+function mouseUp(evt){
+	ui.mousePressed = false;
+	ui.click = true; //Will be true for one frame
+}
+
+
+  
+    </script>
+  </body>
+</html>
