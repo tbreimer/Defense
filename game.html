@@ -12,14 +12,16 @@
   </head>
   <body onload="init()">
     
-    
+    <canvas id="worldLayer" width="1280" height="720"></canvas>
     <canvas id="bgLayer" width="1280" height="720"></canvas>
     <canvas id="playerLayer" width="1280" height="720"></canvas>
 	<canvas id="uiLayer" width="1280" height="720" onmousemove="getMousePos(event)" onmousedown="mouseDown(event)" onmouseup="mouseUp(event)"></canvas>
 <script src="js/jquery-3.2.1.min.js"></script>
 <script>
 	
-//Canvas
+// Canvas
+var wCanvas = document.getElementById('bgLayer');
+var wCtx = wCanvas.getContext("2d");
 var bCanvas = document.getElementById('bgLayer');
 var bCtx = bCanvas.getContext("2d");
 var pCanvas = document.getElementById('playerLayer');
@@ -28,31 +30,46 @@ var uCanvas = document.getElementById('uiLayer');
 var uCtx = uCanvas.getContext("2d");
 console.log("Canvas Created");
 
-//Keys
+// Keys
 document.body.addEventListener("keydown", keyDown, false);
 document.body.addEventListener("keyup", keyUp, false);
 
-//How many pixels per refresh the map moves
+// How many pixels per refresh the map moves
 var dirh = 0;
 var dirv = 0;
 
-//Create entities
+// Create entities
 var player = new Player();
-console.log("Player initialized");
 
 var world = new World();
-console.log("World initialized");
 
 var ui = new UI();
-console.log("UI initialized");
+
+
+// Database of block names and their map colors
+var blockName = ["water", "grass"];
+
+var blockColor = [
+	[255, 255, 255], // water
+	[0, 255, 0] // grass
+];
+
+var blockTextures = [
+	[30, 115, 255], // water
+	[45, 190, 40] // grass
+];
 
 window.addEventListener('resize', resize);
 
 function resize(){
+	// Get window size
 	windowWidth = window.innerWidth || document.body.clientWidth;
 	windowHeight =  window.innerHeight || document.body.clientHeight;
 	
-	bCanvas.width = windowWidth; //Change canvas size to window size
+	// Change canvas size to window size
+	wCanvas.width = windowWidth; 
+	wCanvas.width = windowWidth;
+	bCanvas.width = windowWidth; 
 	pCanvas.width = windowWidth;
 	uCanvas.width = windowWidth;
 	bCanvas.height = windowHeight;
@@ -60,13 +77,16 @@ function resize(){
 	uCanvas.height = windowHeight;
 
 	$("body").css("overflow", "hidden");
-	
 }
 
-
-//Happens when page loads
+// Happens when page loads
 function init(){
 	resize();
+
+	world.create();
+	world.transcribe();
+	console.log("World Initialized")
+
 	requestAnimationFrame(update);
 	console.log("First Refresh");
 }
@@ -79,15 +99,135 @@ function update(){
 }
 
 function World() {
-	
+	this.worldWidth = 100;
+	this.worldHeight = 100;
+
+	this.blockSize = 40;
+
+	this.blockData = [];
+
 	World.prototype.update = function(){
- 	
+		bCtx.clearRect(0, 0, windowWidth, windowHeight);
+
+ 		// Water background
+ 		bCtx.fillStyle = "rgb(30, 115, 255)";
+ 		bCtx.fillRect(0, 0, windowWidth, windowHeight);
+
+ 		// Render world
+
+ 		// Gets coordinates of the top left of the canvas
+ 		topX = Math.round(player.x - (windowWidth / 2));
+ 		topY = Math.round(player.y - (windowHeight / 2));
+
+ 		// Finds the top left block closest to the top left of the canvas
+ 		topBlockX = Math.floor(topX / this.blockSize);
+ 		topBlockY = Math.floor(topY / this.blockSize);
+
+ 		// Gets that block's coordinates
+ 		topBlockCoordX = topBlockX * this.blockSize;
+ 		topBlockCoordY = topBlockY * this.blockSize;
+
+ 		// Finds offset from top left of canvas to the block's coordinates
+ 		offsetX = topX - topBlockCoordX;
+ 		offsetY = topY - topBlockCoordY;
+
+ 		// Gets the number of blocks in the canvas
+ 		blockWidth = Math.ceil(windowWidth / this.blockSize) + 1;
+ 		blockHeight = Math.ceil(windowHeight / this.blockSize) + 1;
+
+ 		for (var x = 0; x < blockWidth; x++){
+ 			for (var y = 0; y < blockHeight; y++){
+
+ 				// Prevents error if block doesn't exist in array
+ 				if (topBlockX + x < 0 || topBlockX + x > this.worldWidth || topBlockY + y < 0 || topBlockY + y > this.worldWidth){
+ 					colorData = this.getBlockTexture("water");
+ 				}else{
+ 					colorData = this.getBlockTexture(this.blockData[topBlockX + x][topBlockY + y]);
+ 				}
+
+ 				//Only draw block if it is not water and not undefined
+ 				if (this.blockData[topBlockX + x][topBlockY + y] != "water" && this.blockData[topBlockX + x][topBlockY + y] != undefined){
+
+	 				// Draw block
+	 				bCtx.fillStyle = "rgb(" + colorData.r + "," + colorData.g + "," + colorData.b + ")";
+	 				bCtx.fillRect(Math.floor(x * this.blockSize - offsetX), Math.floor(y * this.blockSize - offsetY), this.blockSize, this.blockSize);
+
+	 				// Stroke block
+	 				bCtx.fillStyle = "black";
+	 				bCtx.strokeRect(Math.floor(x * this.blockSize - offsetX), Math.floor(y * this.blockSize - offsetY), this.blockSize, this.blockSize);
+
+	 			}
+ 			}
+ 		}
+	}
+
+	World.prototype.create = function(){
+		// Erase current world
+		wCtx.fillStyle = "white";
+		wCtx.fillRect(0, 0, this.worldWidth, this.worldHeight);
+
+		// Make new world
+		for (var x = 0; x < 100; x += 10){
+			wCtx.fillStyle = "rgb(0, 255, 0)";
+			wCtx.fillRect(x, 20, 5, 60);
+		}
+	}
+
+	World.prototype.transcribe = function(){
+		// Transcibes pixels that makeup world onto an array
+		for (var x = 0; x < this.worldWidth; x++){
+			//Is added onto 2d array
+			rowArray = [];
+
+			for (var y = 0; y < this.worldHeight; y++){
+				blockType = this.determineBlock(x, y);
+				rowArray.push(blockType);
+			}
+
+			this.blockData.push(rowArray);
+		}
+	}
+
+	World.prototype.determineBlock = function(x, y){
+		// Determine block name via coordinates
+
+		block = wCtx.getImageData(x, y, 1, 1).data;
+		
+		// Loops through all the blocks and finds a matching one
+		for (var x = 0; x < blockName.length; x++){ 
+			if (block[0] == blockColor[x][0] && block[1] == blockColor[x][1] && block[2] == blockColor[x][2]){
+				return blockName[x];
+			}
+		}
+
+		// If block cannot be identified
+		return "water";
+	}
+	World.prototype.getBlockTexture = function(block){
+		//Determine block texture via block name
+
+		for (var x = 0; x < blockName.length; x++){
+			if (block == blockName[x]){
+				return{
+					r: blockTextures[x][0],
+					g: blockTextures[x][1],
+					b: blockTextures[x][2]
+				}  
+			}
+		}
 	}
 }
 
 function Player(){
+	this.x = 1274;
+	this.y = 1234;
 	Player.prototype.update = function(){
-		
+		pCtx.clearRect(0, 0, windowWidth, windowHeight);
+
+		this.x += dirh;
+		this.y += dirv;
+
+		pCtx.fillRect(windowWidth / 2 - 15, windowHeight / 2 - 15, 30, 30);
 	}
 }
 
@@ -97,7 +237,7 @@ function UI(){
 	this.mousePressed = false;
 	this.click = false;
 	UI.prototype.update = function(){
-		this.click = false; //True for one frame after player releases mouse
+		this.click = false; // True for one frame after player releases mouse
 	}
 }
 
@@ -165,14 +305,14 @@ function getMousePos(evt) {
 }
 
 
-//mouse clicked event listeners
+// Mouse clicked event listeners
 
 function mouseDown(evt){
 	ui.mousePressed = true;
 }
 function mouseUp(evt){
 	ui.mousePressed = false;
-	ui.click = true; //Will be true for one frame
+	ui.click = true; // Will be true for one frame
 }
 
 
