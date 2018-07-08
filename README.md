@@ -1,8 +1,7 @@
 # Defense
 This repository tracks the development of a game which will be released in late August.
 
-### Next Version:
-#### v1.0-alpha
+### v1.0-alpha
 * Updated Readme
 * Block rendering system
 * World the player can move around in
