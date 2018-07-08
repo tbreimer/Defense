@@ -2,10 +2,10 @@
 This repository tracks the development of a game which will be released in late August.
 
 ### v1.0-alpha
-* Updated Readme
+* Updated readme
 * Block rendering system
 * World the player can move around in
 
-### Bugs:
+### Bugs
 * Performance goes up dramatically after downscaling then upscaling window
 * Error in rendering code that randomly causes a crash
