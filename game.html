@@ -11,7 +11,6 @@
     </style>
   </head>
   <body onload="init()">
-    
     <canvas id="worldLayer" width="1280" height="720"></canvas>
     <canvas id="bgLayer" width="1280" height="720"></canvas>
     <canvas id="playerLayer" width="1280" height="720"></canvas>
@@ -34,17 +33,12 @@ console.log("Canvas Created");
 document.body.addEventListener("keydown", keyDown, false);
 document.body.addEventListener("keyup", keyUp, false);
 
-// How many pixels per refresh the map moves
-var dirh = 0;
-var dirv = 0;
-
 // Create entities
 var player = new Player();
 
 var world = new World();
 
 var ui = new UI();
-
 
 // Database of block names and their map colors
 var blockName = ["water", "grass"];
@@ -77,18 +71,21 @@ function resize(){
 	uCanvas.height = windowHeight;
 
 	$("body").css("overflow", "hidden");
+
+	// Ensures that world is rendered on the first frame and upon resize
+	world.render();
 }
 
 // Happens when page loads
 function init(){
-	resize();
-
 	world.create();
 	world.transcribe();
 	console.log("World Initialized")
 
 	requestAnimationFrame(update);
 	console.log("First Refresh");
+
+	resize();
 }
 
 function update(){
@@ -99,21 +96,31 @@ function update(){
 }
 
 function World() {
-	this.worldWidth = 100;
-	this.worldHeight = 100;
+	this.worldWidth = 30;
+	this.worldHeight = 30;
 
 	this.blockSize = 40;
 
 	this.blockData = [];
 
+	this.error = [];
+
 	World.prototype.update = function(){
+ 		// Assures that world is only rendered when player is moving
+ 		if (player.movementU != 0 || player.movementD != 0 || player.movementL != 0 || player.movementR != 0){
+ 			this.render();
+ 		}
+	}
+
+	World.prototype.render = function(){
+		// Ensures the screen is only cleared before the canvas updates
 		bCtx.clearRect(0, 0, windowWidth, windowHeight);
 
- 		// Water background
+		// Render world
+
+		// Water background
  		bCtx.fillStyle = "rgb(30, 115, 255)";
  		bCtx.fillRect(0, 0, windowWidth, windowHeight);
-
- 		// Render world
 
  		// Gets coordinates of the top left of the canvas
  		topX = Math.round(player.x - (windowWidth / 2));
@@ -135,28 +142,29 @@ function World() {
  		blockWidth = Math.ceil(windowWidth / this.blockSize) + 1;
  		blockHeight = Math.ceil(windowHeight / this.blockSize) + 1;
 
+ 		// Loop thought all the blocks that need to be drawn
  		for (var x = 0; x < blockWidth; x++){
  			for (var y = 0; y < blockHeight; y++){
 
- 				// Prevents error if block doesn't exist in array
- 				if (topBlockX + x < 0 || topBlockX + x > this.worldWidth || topBlockY + y < 0 || topBlockY + y > this.worldWidth){
- 					colorData = this.getBlockTexture("water");
- 				}else{
- 					colorData = this.getBlockTexture(this.blockData[topBlockX + x][topBlockY + y]);
+ 				// Ensures that blocks not in the array will not be drawn
+ 				if (topBlockX + x >= 0 && topBlockX + x < this.worldWidth && topBlockY + y >= 0 && topBlockY + y < this.worldWidth){
+
+ 					// Ensures that water is not drawn
+ 					if (this.blockData[topBlockX + x][topBlockY + y] != "water"){
+
+ 						//Gets the color of block from its name
+	 					colorData = this.getBlockTexture(this.blockData[topBlockX + x][topBlockY + y]);
+
+	 					// Draw block
+		 				bCtx.fillStyle = "rgb(" + colorData.r + "," + colorData.g + "," + colorData.b + ")";
+		 				bCtx.fillRect(Math.floor(x * this.blockSize - offsetX), Math.floor(y * this.blockSize - offsetY), this.blockSize, this.blockSize);
+
+		 				// Stroke block
+		 				bCtx.lineWidth = 2;
+		 				bCtx.fillStyle = "black";
+		 				bCtx.strokeRect(Math.floor(x * this.blockSize - offsetX), Math.floor(y * this.blockSize - offsetY), this.blockSize, this.blockSize);
+		 			}
  				}
-
- 				//Only draw block if it is not water and not undefined
- 				if (this.blockData[topBlockX + x][topBlockY + y] != "water" && this.blockData[topBlockX + x][topBlockY + y] != undefined){
-
-	 				// Draw block
-	 				bCtx.fillStyle = "rgb(" + colorData.r + "," + colorData.g + "," + colorData.b + ")";
-	 				bCtx.fillRect(Math.floor(x * this.blockSize - offsetX), Math.floor(y * this.blockSize - offsetY), this.blockSize, this.blockSize);
-
-	 				// Stroke block
-	 				bCtx.fillStyle = "black";
-	 				bCtx.strokeRect(Math.floor(x * this.blockSize - offsetX), Math.floor(y * this.blockSize - offsetY), this.blockSize, this.blockSize);
-
-	 			}
  			}
  		}
 	}
@@ -167,16 +175,18 @@ function World() {
 		wCtx.fillRect(0, 0, this.worldWidth, this.worldHeight);
 
 		// Make new world
-		for (var x = 0; x < 100; x += 10){
-			wCtx.fillStyle = "rgb(0, 255, 0)";
-			wCtx.fillRect(x, 20, 5, 60);
-		}
+		wCtx.beginPath();
+	    wCtx.arc(15, 15, 10, 0, 2 * Math.PI, false);
+	    wCtx.fillStyle = 'rgb(0, 255, 0)';
+	    wCtx.fill();
+		
 	}
 
 	World.prototype.transcribe = function(){
 		// Transcibes pixels that makeup world onto an array
 		for (var x = 0; x < this.worldWidth; x++){
-			//Is added onto 2d array
+
+			// Is added onto 2d array
 			rowArray = [];
 
 			for (var y = 0; y < this.worldHeight; y++){
@@ -204,7 +214,7 @@ function World() {
 		return "water";
 	}
 	World.prototype.getBlockTexture = function(block){
-		//Determine block texture via block name
+		// Determine block texture via block name
 
 		for (var x = 0; x < blockName.length; x++){
 			if (block == blockName[x]){
@@ -219,15 +229,40 @@ function World() {
 }
 
 function Player(){
-	this.x = 1274;
-	this.y = 1234;
+	this.x = 600;
+	this.y = 600;
+
+	this.screenX;
+	this.screenY;
+
+	this.width = 30
+	this.height = 30;
+
+	this.movementU = 0;
+	this.movementD = 0;
+	this.movementL = 0;
+	this.movementR = 0;
+
 	Player.prototype.update = function(){
 		pCtx.clearRect(0, 0, windowWidth, windowHeight);
 
-		this.x += dirh;
-		this.y += dirv;
+		// Movement
+		this.x += this.movementR;
+		this.x -= this.movementL;
+		
+		this.y += this.movementD;
+		this.y -= this.movementU;
 
-		pCtx.fillRect(windowWidth / 2 - 15, windowHeight / 2 - 15, 30, 30);
+		// Draw player
+		this.screenX = Math.floor((windowWidth / 2) - (this.width / 2));
+		this.screenY = Math.floor((windowHeight / 2) - (this.height / 2));
+		
+		pCtx.fillStyle = "red";
+		pCtx.fillRect(this.screenX, this.screenY, this.width, this.height);
+
+		pCtx.strokeStyle = "black";
+		pCtx.lineWidth = 2;
+		pCtx.strokeRect(this.screenX, this.screenY, this.width, this.height);
 	}
 }
 
@@ -257,44 +292,47 @@ function keyUp(evt){
 }
 
 function set(key){
-	//W
+	// W
 	if(key == 87){
-		dirv = -3;
+		player.movementU = 4;
 	}
-	//A
+	// A
 	if(key == 65){
-		dirh = -3;
+		player.movementL = 4;
 	}
-	//S
+	// S
 	if(key == 83){
-		dirv = 3;
+		player.movementD = 4;
 	}
-	//D
+	// D
 	if(key == 68){
-		dirh = 3;
+		player.movementR = 4;
 	}
 }
 
 function unSet(key){
-	//W
+	// W
 	if(key == 87){
-		dirv = 0;
+		player.movementU = 0;
 	}
-	//A
+	// A
 	if(key == 65){
-		dirh = 0;
+		player.movementL = 0;
 	}
-	//S
+	// S
 	if(key == 83){
-		dirv = 0;
+		player.movementD = 0;
 	}
-	//D
+	// D
 	if(key == 68){
-		dirh = 0;
+		player.movementR = 0;
 	}
+
+	// Causes the world to be rendered at the resting state of movement, which prevents jittery-ness when player moves again
+	world.render();
 }
 
-//mouse stuff
+// Mouse 
 
 function getMousePos(evt) {
 	var rect = bCanvas.getBoundingClientRect();
