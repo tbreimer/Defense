@@ -1,11 +1,18 @@
 # Defense
 This repository tracks the development of a game which will be released in late August.
 
-### v1.0-alpha
-* Updated readme
-* Block rendering system
-* World the player can move around in
+### v2.0-alpha
+* Changed world size
+* Fixed bug where game crashed when going out of world bounds
+* Optimized rendering, resizing, and player code
+* Changed world size
+* Updated readme with planned features
 
 ### Bugs
-* Performance goes up dramatically after downscaling then upscaling window
-* Error in rendering code that randomly causes a crash
+* None
+
+### Planned
+v3.0-alpha
+* Fix diagonal player movement
+* Collision detection with water
+
