@@ -19,7 +19,7 @@
 <script>
 	
 // Canvas
-var wCanvas = document.getElementById('bgLayer');
+var wCanvas = document.getElementById('worldLayer');
 var wCtx = wCanvas.getContext("2d");
 var bCanvas = document.getElementById('bgLayer');
 var bCtx = bCanvas.getContext("2d");
@@ -40,18 +40,28 @@ var world = new World();
 
 var ui = new UI();
 
-// Database of block names and their map colors
-var blockName = ["water", "grass"];
+// Database of blocks
 
+// Name
+var blockName = ["water", "grass", "sand"];
+
+// Whether they have collision
+var blockCollision = [true, false, false];
+
+// Color on map
 var blockColor = [
 	[255, 255, 255], // water
-	[0, 255, 0] // grass
+	[0, 255, 0], // grass
+	[255, 255, 0] // sand
 ];
 
+// Color in world
 var blockTextures = [
 	[30, 115, 255], // water
-	[45, 190, 40] // grass
+	[45, 190, 40], // grass
+	[255, 255, 0] // sand
 ];
+
 
 window.addEventListener('resize', resize);
 
@@ -85,14 +95,32 @@ function init(){
 	requestAnimationFrame(update);
 	console.log("First Refresh");
 
+	//Calculate fps
+	setInterval(calcFps, 1000);
+
 	resize();
 }
 
 function update(){
+	frame += 1;
+
+
 	world.update();
 	player.update();
 	ui.update();
+
+
 	requestAnimationFrame(update);
+}
+
+// Variables to calculate fps
+var fps;
+var frame = 0;
+
+// Every second this method is executed. Everytime update() fires frame is incrimented
+function calcFps(){
+	fps = frame;
+	frame = 0;
 }
 
 function World() {
@@ -107,8 +135,8 @@ function World() {
 
 	World.prototype.update = function(){
  		// Assures that world is only rendered when player is moving
- 		if (player.movementU != 0 || player.movementD != 0 || player.movementL != 0 || player.movementR != 0){
- 			this.render();
+ 		if (player.movementU != false || player.movementD != false || player.movementL != false || player.movementR != false){
+			this.render();
  		}
 	}
 
@@ -167,6 +195,7 @@ function World() {
  				}
  			}
  		}
+
 	}
 
 	World.prototype.create = function(){
@@ -174,11 +203,27 @@ function World() {
 		wCtx.fillStyle = "white";
 		wCtx.fillRect(0, 0, this.worldWidth, this.worldHeight);
 
-		// Make new world
+	    // Make new world
 		wCtx.beginPath();
 	    wCtx.arc(15, 15, 10, 0, 2 * Math.PI, false);
 	    wCtx.fillStyle = 'rgb(0, 255, 0)';
 	    wCtx.fill();
+
+	    // Make new world
+		wCtx.fillStyle = "rgb(255, 255, 0)";
+		wCtx.fillRect(22, 10, 2, 10);
+
+	    wCtx.fillStyle = "white";
+	    wCtx.fillRect(9, 11, 1, 8);
+	    wCtx.fillRect(11, 9, 8, 1);
+
+	    wCtx.fillRect(18, 18, 1, 1);
+	    wCtx.fillRect(19, 19, 1, 1);
+	    wCtx.fillRect(20, 20, 1, 1);
+
+	    wCtx.fillRect(15, 18, 1, 1);
+	    wCtx.fillRect(14, 19, 1, 1);
+	    wCtx.fillRect(13, 20, 1, 1);
 		
 	}
 
@@ -199,7 +244,7 @@ function World() {
 	}
 
 	World.prototype.determineBlock = function(x, y){
-		// Determine block name via coordinates
+		// Determine block name via coordinates through the map
 
 		block = wCtx.getImageData(x, y, 1, 1).data;
 		
@@ -213,6 +258,21 @@ function World() {
 		// If block cannot be identified
 		return "water";
 	}
+
+	World.prototype.determineBlockCollision = function(x, y){
+		// Determine collision  via coordinates through the world array
+		if (x >= 0 && x < this.worldWidth && y >= 0 && y < this.worldWidth){
+			block = world.blockData[x][y];
+
+			index = blockName.indexOf(block);
+
+			return blockCollision[index];
+		}else{
+			// If block is not in array, therefore water
+			return true;
+		}
+	}
+
 	World.prototype.getBlockTexture = function(block){
 		// Determine block texture via block name
 
@@ -238,21 +298,23 @@ function Player(){
 	this.width = 30
 	this.height = 30;
 
-	this.movementU = 0;
-	this.movementD = 0;
-	this.movementL = 0;
-	this.movementR = 0;
+	this.movementU = false;
+	this.movementD = false;
+	this.movementL = false;
+	this.movementR = false;
+
+	this.deltaU = 0;
+	this.deltaD = 0;
+	this.deltaL = 0;
+	this.deltaR = 0;
+
+	this.speed = 4;
 
 	Player.prototype.update = function(){
 		pCtx.clearRect(0, 0, windowWidth, windowHeight);
 
-		// Movement
-		this.x += this.movementR;
-		this.x -= this.movementL;
+		this.movement();
 		
-		this.y += this.movementD;
-		this.y -= this.movementU;
-
 		// Draw player
 		this.screenX = Math.floor((windowWidth / 2) - (this.width / 2));
 		this.screenY = Math.floor((windowHeight / 2) - (this.height / 2));
@@ -264,6 +326,130 @@ function Player(){
 		pCtx.lineWidth = 2;
 		pCtx.strokeRect(this.screenX, this.screenY, this.width, this.height);
 	}
+	Player.prototype.movement = function(){
+
+		// Handles diagonal movement
+
+		this.deltaU = 0;
+		this.deltaD = 0;
+		this.deltaL = 0;
+		this.deltaR = 0;
+
+		if (this.movementU == true){
+			if (this.movementL == true){
+				this.deltaU = this.speed * 0.75;
+				this.deltaL = this.speed * 0.75;
+			}else if (this.movementR == true){
+				this.deltaU = this.speed * 0.75;
+				this.deltaR = this.speed * 0.75;
+			}else{
+				this.deltaU = this.speed;
+			}
+		}
+
+		if (this.movementD == true){
+			if (this.movementL == true){
+				this.deltaD = this.speed * 0.75;
+				this.deltaL = this.speed * 0.75;
+			}else if (this.movementR == true){
+				this.deltaD = this.speed * 0.75;
+				this.deltaR = this.speed * 0.75;
+			}else{
+				this.deltaD = this.speed;
+			}
+		}
+
+		// No need to cover diagonal movement here since all 4 diagonal directions are already accounted for 
+		if (this.movementL == true && this.movementU == false && this.movementD == false){
+			this.deltaL = this.speed;
+		}
+
+		if (this.movementR == true && this.movementU == false && this.movementD == false){
+			this.deltaR = this.speed;
+		}
+
+		// Collision detection
+
+		// Gets x and y of top of player
+		topX = this.x - (this.width / 2);
+		topY = this.y - (this.height / 2);
+
+		// Finds x and y of bottom of player
+		bottomX = this.x + (this.width / 2);
+		bottomY = this.y + (this.height / 2);
+
+		// Finds how many blocks the player spans in current position
+		blockWidth = Math.floor(bottomX / world.blockSize) - Math.floor(topX / world.blockSize) + 1;
+		blockHeight = Math.floor(bottomY / world.blockSize) - Math.floor(topY / world.blockSize) + 1;
+
+		
+		//If there is a block with collision to the left
+		blockL = false
+
+		// If the player will pass a block next frame
+		if (Math.floor(topX / world.blockSize) != Math.floor((topX - this.deltaL) / world.blockSize)){
+			// Go through all the blocks adjacent to the player's left
+			for (var x = 0; x < blockHeight; x ++){
+				blockX = Math.floor((topX - this.deltaL) / world.blockSize);
+				blockY = Math.floor(topY / world.blockSize) + x;
+				// Find if the block has collision
+				if (world.determineBlockCollision(blockX, blockY) == true){
+					blockL = true; 
+				}
+			}
+		}
+
+		blockR = false
+		if (Math.floor(bottomX / world.blockSize) != Math.floor((bottomX + this.deltaR) / world.blockSize)){
+			for (var x = 0; x < blockHeight; x ++){
+				blockX = Math.floor((bottomX + this.deltaR) / world.blockSize);
+				blockY = Math.floor(topY / world.blockSize) + x;
+				if (world.determineBlockCollision(blockX, blockY) == true){
+					blockR = true; 
+				}
+			}
+		}
+
+		blockU = false
+		if (Math.floor(topY / world.blockSize) != Math.floor((topY - this.deltaU) / world.blockSize)){
+			for (var x = 0; x < blockWidth; x ++){
+				blockY = Math.floor((topY - this.deltaU) / world.blockSize);
+				blockX = Math.floor(topX / world.blockSize) + x;
+				if (world.determineBlockCollision(blockX, blockY) == true){
+					blockU = true; 
+				}
+			}
+		}
+
+		blockD = false
+		if (Math.floor(bottomY / world.blockSize) != Math.floor((bottomY + this.deltaD) / world.blockSize)){
+			for (var x = 0; x < blockWidth; x ++){
+				blockY = Math.floor((bottomY + this.deltaD) / world.blockSize);
+				blockX = Math.floor(topX / world.blockSize) + x;
+				if (world.determineBlockCollision(blockX, blockY) == true){
+					blockD = true; 
+				}
+			}
+		}
+
+		// If no block is in the way, change the coordinates
+
+		if (blockR == false){
+			this.x += this.deltaR;
+		}
+
+		if (blockL == false){
+			this.x -= this.deltaL;
+		}
+		
+		if (blockD == false){
+			this.y += this.deltaD;
+		}
+	
+		if (blockU == false){
+			this.y -= this.deltaU;
+		}
+	}
 }
 
 function UI(){
@@ -271,8 +457,24 @@ function UI(){
 	this.mouseY;
 	this.mousePressed = false;
 	this.click = false;
+
+	this.map = false;
 	UI.prototype.update = function(){
+		uCtx.clearRect(0, 0, windowWidth, windowHeight);
+
+		this.debugMenu();
+
 		this.click = false; // True for one frame after player releases mouse
+	}
+
+	UI.prototype.debugMenu = function(){
+		uCtx.fillStyle = "black";
+		uCtx.font = "16px Arial";
+
+		uCtx.fillText("FPS " + fps, 5, 20);
+		uCtx.fillText("X " + player.x + ", " + Math.floor(player.x / world.blockSize), 5, 40);
+		uCtx.fillText("Y " + player.y + ", " + Math.floor(player.y / world.blockSize), 5, 60);
+
 	}
 }
 
@@ -294,38 +496,38 @@ function keyUp(evt){
 function set(key){
 	// W
 	if(key == 87){
-		player.movementU = 4;
+		player.movementU = true;
 	}
 	// A
 	if(key == 65){
-		player.movementL = 4;
+		player.movementL = true;
 	}
 	// S
 	if(key == 83){
-		player.movementD = 4;
+		player.movementD = true;
 	}
 	// D
 	if(key == 68){
-		player.movementR = 4;
+		player.movementR = true;
 	}
 }
 
 function unSet(key){
 	// W
 	if(key == 87){
-		player.movementU = 0;
+		player.movementU = false;
 	}
 	// A
 	if(key == 65){
-		player.movementL = 0;
+		player.movementL = false;
 	}
 	// S
 	if(key == 83){
-		player.movementD = 0;
+		player.movementD = false;
 	}
 	// D
 	if(key == 68){
-		player.movementR = 0;
+		player.movementR = false;
 	}
 
 	// Causes the world to be rendered at the resting state of movement, which prevents jittery-ness when player moves again
@@ -341,7 +543,6 @@ function getMousePos(evt) {
 	ui.mouseY = evt.clientY - rect.top;
 
 }
-
 
 // Mouse clicked event listeners
 
