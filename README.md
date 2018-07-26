@@ -1,17 +1,17 @@
 # Defense
 This repository tracks the development of a game which will be released in late August.
 
-### v3.0-alpha
-* Fps meter
-* Fix diagonal player movement
-* Changed world
-* Collision detection
-* Added sand
+### v4.0-alpha
+* Monsters
+* Abillity to kill monsters
+* New island
+* Abillity to die
 
 ### Bugs
-* None
+* Screen will sometimes be blank upon loading the page
 
 ### Planned
 v4.0-alpha
+
 
 

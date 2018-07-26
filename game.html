@@ -1,7 +1,7 @@
 <!DOCTYPE HTML>
 <html>
   <head>
-    <title>Template</title>
+    <title>Defense</title>
     <style>
       canvas {
 		position: absolute;
@@ -16,6 +16,8 @@
     <canvas id="playerLayer" width="1280" height="720"></canvas>
 	<canvas id="uiLayer" width="1280" height="720" onmousemove="getMousePos(event)" onmousedown="mouseDown(event)" onmouseup="mouseUp(event)"></canvas>
 <script src="js/jquery-3.2.1.min.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/ui.js"></script>
 <script>
 	
 // Canvas
@@ -34,9 +36,9 @@ document.body.addEventListener("keydown", keyDown, false);
 document.body.addEventListener("keyup", keyUp, false);
 
 // Create entities
-var player = new Player();
-
 var world = new World();
+
+var player = new Player();
 
 var ui = new UI();
 
@@ -47,6 +49,9 @@ var blockName = ["water", "grass", "sand"];
 
 // Whether they have collision
 var blockCollision = [true, false, false];
+
+// Whether blocks have collision for entities
+var blockCollisionEntities = [false, false, false];
 
 // Color on map
 var blockColor = [
@@ -86,6 +91,27 @@ function resize(){
 	world.render();
 }
 
+// Variables to calculate fps
+var fps;
+var frame = 0;
+
+// Every second this method is executed. Everytime update() fires frame is incrimented
+function calcFps(){
+	fps = frame;
+	frame = 0;
+}
+
+// Find distance given width and height
+function findDistance(width, height){
+    total = width * width + height * height;
+    return Math.sqrt(total);
+}
+
+// Get random, min inclusive and max exclusive
+function getRandom(min, max) {
+  return Math.random() * (max - min) + min;
+}
+
 // Happens when page loads
 function init(){
 	world.create();
@@ -104,28 +130,21 @@ function init(){
 function update(){
 	frame += 1;
 
-
 	world.update();
-	player.update();
-	ui.update();
 
+	//If player is alive, update them
+	if (player.alive == true){
+		player.update();
+	}
+
+	ui.update();
 
 	requestAnimationFrame(update);
 }
 
-// Variables to calculate fps
-var fps;
-var frame = 0;
-
-// Every second this method is executed. Everytime update() fires frame is incrimented
-function calcFps(){
-	fps = frame;
-	frame = 0;
-}
-
 function World() {
-	this.worldWidth = 30;
-	this.worldHeight = 30;
+	this.worldWidth = 50;
+	this.worldHeight = 50;
 
 	this.blockSize = 40;
 
@@ -133,10 +152,37 @@ function World() {
 
 	this.error = [];
 
+	this.entities = [];
+
+	this.islandRadius = 8;
+
+	this.wave = true;
+	this.difficulty = 1; 
+
+	// Chooses where entities spawn
+	this.spwanCoords = [[0, 0], [0, this.worldHeight], [this.worldWidth, 0], [this.worldWidth, this.worldHeight]];
+	this.spawn = 0;
+
+	// Length and width of box where entities can spawn
+	this.spawnBounds = 15;
+
 	World.prototype.update = function(){
+		pCtx.clearRect(0, 0, windowWidth, windowHeight);
+		uCtx.clearRect(0, 0, windowWidth, windowHeight);
+
+		this.spawnEntities();
+
  		// Assures that world is only rendered when player is moving
  		if (player.movementU != false || player.movementD != false || player.movementL != false || player.movementR != false){
 			this.render();
+ 		}
+
+ 		// Updates all entities
+ 		for (var x = 0; x < this.entities.length; x++){
+ 			// Only update if entity is alive
+ 			if (this.entities[x].alive == true){
+ 				this.entities[x].update();
+ 			}
  		}
 	}
 
@@ -170,7 +216,7 @@ function World() {
  		blockWidth = Math.ceil(windowWidth / this.blockSize) + 1;
  		blockHeight = Math.ceil(windowHeight / this.blockSize) + 1;
 
- 		// Loop thought all the blocks that need to be drawn
+ 		// Loop through all the blocks that need to be drawn
  		for (var x = 0; x < blockWidth; x++){
  			for (var y = 0; y < blockHeight; y++){
 
@@ -195,7 +241,24 @@ function World() {
  				}
  			}
  		}
+	}
 
+	World.prototype.spawnEntities = function(){
+		// Randomly spawn entities
+		random = Math.random() * 100;
+
+		if (random < this.difficulty){
+			// Randomly select coordinates at the edges of the map
+			coords = this.spwanCoords[this.spawn];
+			
+			offsetX = getRandom(-this.spawnBounds, this.spawnBounds);
+			offsetY = getRandom(-this.spawnBounds, this.spawnBounds);
+			
+			x = coords[0] + offsetX * world.blockSize;
+			y = coords[1] + offsetY * world.blockSize;
+
+			this.entities.push(new Entity(x, y));
+		}
 	}
 
 	World.prototype.create = function(){
@@ -203,28 +266,49 @@ function World() {
 		wCtx.fillStyle = "white";
 		wCtx.fillRect(0, 0, this.worldWidth, this.worldHeight);
 
-	    // Make new world
-		wCtx.beginPath();
-	    wCtx.arc(15, 15, 10, 0, 2 * Math.PI, false);
-	    wCtx.fillStyle = 'rgb(0, 255, 0)';
-	    wCtx.fill();
+		// Sand background
 
-	    // Make new world
-		wCtx.fillStyle = "rgb(255, 255, 0)";
-		wCtx.fillRect(22, 10, 2, 10);
+		// Loops through all the blocks
+		for (var x = 0; x < this.worldWidth; x++){
+ 			for (var y = 0; y < this.worldHeight; y++){
+ 				// Find center of world
+ 				centerX = this.worldWidth / 2;
+ 				centerY = this.worldHeight / 2;
 
-	    wCtx.fillStyle = "white";
-	    wCtx.fillRect(9, 11, 1, 8);
-	    wCtx.fillRect(11, 9, 8, 1);
+ 				// Coord distance from center to current block
+ 				width = centerX - x;
+ 				height = centerY - y;
 
-	    wCtx.fillRect(18, 18, 1, 1);
-	    wCtx.fillRect(19, 19, 1, 1);
-	    wCtx.fillRect(20, 20, 1, 1);
+ 				// Distance from center to current block
+ 				distance = findDistance(width, height);
 
-	    wCtx.fillRect(15, 18, 1, 1);
-	    wCtx.fillRect(14, 19, 1, 1);
-	    wCtx.fillRect(13, 20, 1, 1);
-		
+ 				// If block is less than island width (plus a little more for the sand to show) draw a block
+ 				if (distance < this.islandRadius + 1.5){
+ 					wCtx.fillStyle = 'rgb(255, 255, 0)';
+ 					wCtx.fillRect(x, y, 1, 1);
+ 				}
+ 				
+ 			}
+ 		}
+
+ 		// Grass background
+
+ 		for (var x = 0; x < this.worldWidth; x++){
+ 			for (var y = 0; y < this.worldHeight; y++){
+ 				centerX = this.worldWidth / 2;
+ 				centerY = this.worldHeight / 2;
+
+ 				width = centerX - x;
+ 				height = centerY - y;
+
+ 				distance = findDistance(width, height);
+ 				
+ 				if (distance < this.islandRadius){
+ 					wCtx.fillStyle = 'rgb(0, 255, 0)';
+ 					wCtx.fillRect(x, y, 1, 1);
+ 				}
+ 			}
+ 		}
 	}
 
 	World.prototype.transcribe = function(){
@@ -260,13 +344,27 @@ function World() {
 	}
 
 	World.prototype.determineBlockCollision = function(x, y){
-		// Determine collision  via coordinates through the world array
+		// Determine collision via coordinates through the world array
 		if (x >= 0 && x < this.worldWidth && y >= 0 && y < this.worldWidth){
 			block = world.blockData[x][y];
 
 			index = blockName.indexOf(block);
 
 			return blockCollision[index];
+		}else{
+			// If block is not in array, therefore water
+			return true;
+		}
+	}
+
+	World.prototype.determineEntityBlockCollision = function(x, y){
+		// Determine collision for entitiesa via coordinates through the world array
+		if (x >= 0 && x < this.worldWidth && y >= 0 && y < this.worldWidth){
+			block = world.blockData[x][y];
+
+			index = blockName.indexOf(block);
+
+			return blockCollisionEntities[index];
 		}else{
 			// If block is not in array, therefore water
 			return true;
@@ -289,8 +387,13 @@ function World() {
 }
 
 function Player(){
-	this.x = 600;
-	this.y = 600;
+	this.health = 100;
+	this.alive = true;
+	this.maxHealth = 100;
+
+	// Center player on island 
+	this.x = world.blockSize * (world.worldWidth / 2);
+	this.y = world.blockSize * (world.worldHeight / 2);
 
 	this.screenX;
 	this.screenY;
@@ -310,8 +413,13 @@ function Player(){
 
 	this.speed = 4;
 
+	this.damage = 10;
+
 	Player.prototype.update = function(){
-		pCtx.clearRect(0, 0, windowWidth, windowHeight);
+		// Check if health is too low
+		if (this.health <= 0){
+			this.alive = false;
+		}
 
 		this.movement();
 		
@@ -319,7 +427,7 @@ function Player(){
 		this.screenX = Math.floor((windowWidth / 2) - (this.width / 2));
 		this.screenY = Math.floor((windowHeight / 2) - (this.height / 2));
 		
-		pCtx.fillStyle = "red";
+		pCtx.fillStyle = "blue";
 		pCtx.fillRect(this.screenX, this.screenY, this.width, this.height);
 
 		pCtx.strokeStyle = "black";
@@ -381,11 +489,11 @@ function Player(){
 		// Finds how many blocks the player spans in current position
 		blockWidth = Math.floor(bottomX / world.blockSize) - Math.floor(topX / world.blockSize) + 1;
 		blockHeight = Math.floor(bottomY / world.blockSize) - Math.floor(topY / world.blockSize) + 1;
-
 		
 		//If there is a block with collision to the left
 		blockL = false
 
+		// Collision left
 		// If the player will pass a block next frame
 		if (Math.floor(topX / world.blockSize) != Math.floor((topX - this.deltaL) / world.blockSize)){
 			// Go through all the blocks adjacent to the player's left
@@ -399,6 +507,7 @@ function Player(){
 			}
 		}
 
+		// Collision right
 		blockR = false
 		if (Math.floor(bottomX / world.blockSize) != Math.floor((bottomX + this.deltaR) / world.blockSize)){
 			for (var x = 0; x < blockHeight; x ++){
@@ -410,6 +519,7 @@ function Player(){
 			}
 		}
 
+		// Collision Up
 		blockU = false
 		if (Math.floor(topY / world.blockSize) != Math.floor((topY - this.deltaU) / world.blockSize)){
 			for (var x = 0; x < blockWidth; x ++){
@@ -421,6 +531,7 @@ function Player(){
 			}
 		}
 
+		// Collision Down
 		blockD = false
 		if (Math.floor(bottomY / world.blockSize) != Math.floor((bottomY + this.deltaD) / world.blockSize)){
 			for (var x = 0; x < blockWidth; x ++){
@@ -428,6 +539,57 @@ function Player(){
 				blockX = Math.floor(topX / world.blockSize) + x;
 				if (world.determineBlockCollision(blockX, blockY) == true){
 					blockD = true; 
+				}
+			}
+		}
+
+		// Collision diagonal
+
+		// Collision top left
+		// Only do collision is player is going diagonally (prevents bug)
+		if (blockU == false && blockL == false){
+			// Check if player will be in a diagonal block next frame
+			if (Math.floor(topY / world.blockSize) != Math.floor((topY - this.deltaU) / world.blockSize) && Math.floor(topX / world.blockSize) != Math.floor((topX - this.deltaL) / world.blockSize)){
+				// Find that diagonal block
+				blockY = Math.floor((topY - this.deltaU) / world.blockSize);
+				blockX = Math.floor((topX - this.deltaL) / world.blockSize);
+				// Test if that diagonal block has collision
+				if (world.determineBlockCollision(blockX, blockY) == true){
+					// Ensures player does not come to a complete stop when hitting a block from 
+					blockU = true;
+				}
+			}
+		}
+
+		// Collision bottom left
+		if (blockD == false && blockL == false){
+			if (Math.floor(bottomY / world.blockSize) != Math.floor((bottomY + this.deltaD) / world.blockSize) && Math.floor(topX / world.blockSize) != Math.floor((topX - this.deltaL) / world.blockSize)){
+				blockY = Math.floor((bottomY + this.deltaD) / world.blockSize);
+				blockX = Math.floor((topX - this.deltaL) / world.blockSize);
+				if (world.determineBlockCollision(blockX, blockY) == true){
+					blockD = true;
+				}
+			}
+		}
+
+		// Collision bottom right
+		if (blockD == false && blockR == false){
+			if (Math.floor(bottomY / world.blockSize) != Math.floor((bottomY + this.deltaD) / world.blockSize) && Math.floor(topX / world.blockSize) != Math.floor((bottomX + this.deltaR) / world.blockSize)){
+				blockY = Math.floor((bottomY + this.deltaD) / world.blockSize);
+				blockX = Math.floor((bottomX + this.deltaR) / world.blockSize);
+				if (world.determineBlockCollision(blockX, blockY) == true){
+					blockD = true;
+				}
+			}
+		}
+
+		// Collision top right
+		if (blockU == false && blockR == false){
+			if (Math.floor(bottomY / world.blockSize) != Math.floor((topY - this.deltaU) / world.blockSize) && Math.floor(topX / world.blockSize) != Math.floor((bottomX + this.deltaR) / world.blockSize)){
+				blockY = Math.floor((topY - this.deltaU) / world.blockSize);
+				blockX = Math.floor((bottomX + this.deltaR) / world.blockSize);
+				if (world.determineBlockCollision(blockX, blockY) == true){
+					blockU = true;
 				}
 			}
 		}
@@ -451,33 +613,6 @@ function Player(){
 		}
 	}
 }
-
-function UI(){
-	this.mouseX;
-	this.mouseY;
-	this.mousePressed = false;
-	this.click = false;
-
-	this.map = false;
-	UI.prototype.update = function(){
-		uCtx.clearRect(0, 0, windowWidth, windowHeight);
-
-		this.debugMenu();
-
-		this.click = false; // True for one frame after player releases mouse
-	}
-
-	UI.prototype.debugMenu = function(){
-		uCtx.fillStyle = "black";
-		uCtx.font = "16px Arial";
-
-		uCtx.fillText("FPS " + fps, 5, 20);
-		uCtx.fillText("X " + player.x + ", " + Math.floor(player.x / world.blockSize), 5, 40);
-		uCtx.fillText("Y " + player.y + ", " + Math.floor(player.y / world.blockSize), 5, 60);
-
-	}
-}
-
 
 function keyDown(evt){
   evt.preventDefault();
@@ -521,7 +656,7 @@ function unSet(key){
 	if(key == 65){
 		player.movementL = false;
 	}
-	// S
+	// Scontains
 	if(key == 83){
 		player.movementD = false;
 	}
