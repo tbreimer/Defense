@@ -11,7 +11,7 @@ This repository tracks the development of a game which will be released in late 
 * Screen will sometimes be blank upon loading the page
 
 ### Planned
-v4.0-alpha
+
 
 
 
