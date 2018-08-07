@@ -8,6 +8,9 @@ function Entity(x, y){
 	this.width = 30;
 	this.height = 30;
 
+	// Allows enemy to fade in when they are spawned
+	this.transparency = 0;
+
 	this.movementU = false;
 	this.movementD = false;
 	this.movementL = false;
@@ -20,29 +23,57 @@ function Entity(x, y){
 
 	this.speed = 1;
 
+	this.scoreValue = 20;
+
 	this.alive = true;
 	this.health = 20;
 
 	// If entity has been hurt
 	this.damaged = false;
 
+	// How many frames enemy has shown damaged color for
+	this.damagedFrames = 0;
+
 	// How much damage entity does per frame
 	this.attackValue = 1;
 
 	Entity.prototype.update = function(){
-		this.movement();
 
-		this.damage();
+		// Prevents entity from moving after they have been damaged
+		if (this.damaged != true){
+			this.movement();
+		}
 
 		this.attack();
 
+		// If health is too low, remove entity
+		if (this.health <= 0){
+			this.remove();
+		}
+
 		// Draw entity
+
+		// Decrease transparency if recently spawned
+		if (this.transparency < 1){
+			this.transparency += 0.05;
+		}
+
+		pCtx.globalAlpha = this.transparency;
+
 		this.screenX = this.x - player.x + (windowWidth / 2) - (player.width / 2);
 		this.screenY = this.y - player.y + (windowHeight / 2) - (player.height / 2);
 
 		// Change color for one frame if enemy is damaged
 		if (this.damaged == true){
 			pCtx.fillStyle = "rgb(80, 0, 0)";
+
+			// Ensures enemy stays in damaged mode for some frames
+			if (this.damagedFrames < 10){
+				this.damagedFrames += 1;
+			}else{
+				this.damaged = false;
+				this.damagedFrames = 0;
+			}
 		}else{
 			pCtx.fillStyle = "red";
 		}
@@ -53,24 +84,14 @@ function Entity(x, y){
 		pCtx.lineWidth = 2;
 		pCtx.strokeRect(this.screenX, this.screenY, this.width, this.height);
 
-		this.damaged = false;
+		pCtx.globalAlpha = 1;
 	}
 
-	Entity.prototype.damage = function(){
-		playerDistance = findDistance(this.x - player.x, this.y - player.y);
-		mouseDistance = findDistance((this.screenX + this.width / 2) - ui.mouseX, (this.screenY + this.height / 2) - ui.mouseY);
+	Entity.prototype.damage = function(amount){
+		this.health -= amount;
 
-		// If the player and mouse and close, and the mouse is clicked, lower the health
-		if (playerDistance < 100 && mouseDistance < 200 && ui.click == true){
-			this.health -= player.damage;
-
-			// True for one frame, makes enemy change color
-			this.damaged = true;
-		}
-
-		if (this.health <= 0){
-			this.alive = false;
-		}
+		// True for one frame, makes enemy change color
+		this.damaged = true;
 	}
 
 	Entity.prototype.attack = function(){
@@ -81,76 +102,75 @@ function Entity(x, y){
 			player.health -= this.attackValue;
 		}
 	}
- 
-	Entity.prototype.movement = function(){
-		// Move entity towards player 
 
+	Entity.prototype.remove = function(){
+		// Triggers when health is too low
+
+		this.alive = false;
+
+		player.score += this.scoreValue;
+	}
+
+	Entity.prototype.movement = function(){
+		// Difference between player and entity x and y coords
 		xDif = this.x - player.x;
 		yDif = this.y - player.y;
 
-		if (xDif > 5){
+		// The change per frame in x and y coords to move entity to player
+		cX = 0;
+		cY = 0;
+
+		// If the entity is close to the player, don't move
+		if (xDif > 20 || yDif > 20 || xDif < -20 || yDif < -20){
+			// Finds how many pixels entity has to travel in X axis for every pixel in Y axis
+			cX = (this.x - player.x) / (this.y - player.y); // Change (x / y)
+			cY = 1;
+
+	   		//Solves for a ratio that makes the entity travel at the speed
+	    	ratio = (Math.sqrt((cX * cX) + (cY * cY))) / (this.speed);
+	    	
+	    	// Redefine using ratio
+	   		cX = cX / ratio;
+	    	cY = cY / ratio;
+
+	    	// Negate values if entity needs to go the opposite way
+	    	if (this.y - player.y > 0){
+	    		cX = -cX;
+	    		cY = -cY;
+	    	}
+	    }
+
+	    // Convert cX and cY values into 4-directional delta and movement variables
+	    if (cX < 0){
 			this.movementL = true;
+			this.deltaL = -cX;
 		}else{
 			this.movementL = false;
+			this.deltaL = 0;
 		}
 
-		if (xDif < -5){
+		if (cX > 0){
 			this.movementR = true;
+			this.deltaR = cX;
 		}else{
 			this.movementR = false;
+			this.deltaR = 0;
 		}
 
-		if (yDif > 5){
+		if (cY < 0){
 			this.movementU = true;
+			this.deltaU = -cY;
 		}else{
 			this.movementU = false;
+			this.deltaU = 0;
 		}
 
-		if (yDif < -5){
+		if (cY > 0){
 			this.movementD = true;
+			this.deltaD = cY;
 		}else{
 			this.movementD = false;
-		}
-
-		// Handles diagonal movement
-
-		this.deltaU = 0;
-		this.deltaD = 0;
-		this.deltaL = 0;
-		this.deltaR = 0;
-
-		if (this.movementU == true){
-			if (this.movementL == true){
-				this.deltaU = this.speed * 0.75;
-				this.deltaL = this.speed * 0.75;
-			}else if (this.movementR == true){
-				this.deltaU = this.speed * 0.75;
-				this.deltaR = this.speed * 0.75;
-			}else{
-				this.deltaU = this.speed;
-			}
-		}
-
-		if (this.movementD == true){
-
-			if (this.movementL == true){
-				this.deltaD = this.speed * 0.75;
-				this.deltaL = this.speed * 0.75;
-			}else if (this.movementR == true){
-				this.deltaD = this.speed * 0.75;
-				this.deltaR = this.speed * 0.75;
-			}else{
-				this.deltaD = this.speed;
-			}
-		}
-
-		// No need to cover diagonal movement here since all 4 diagonal directions are already accounted for 
-		if (this.movementL == true && this.movementU == false && this.movementD == false){
-			this.deltaL = this.speed;
-		}
-
-		if (this.movementR == true && this.movementU == false && this.movementD == false){
-			this.deltaR = this.speed;
+			this.deltaD = 0;
 		}
 
 		// Collision detection
@@ -265,7 +285,7 @@ function Entity(x, y){
 			if (Math.floor(bottomY / world.blockSize) != Math.floor((topY - this.deltaU) / world.blockSize) && Math.floor(topX / world.blockSize) != Math.floor((bottomX + this.deltaR) / world.blockSize)){
 				blockY = Math.floor((topY - this.deltaU) / world.blockSize);
 				blockX = Math.floor((bottomX + this.deltaR) / world.blockSize);
-				if (world.determineBlockCollision(blockX, blockY) == true){
+				if (world.determineEntityBlockCollision(blockX, blockY) == true){
 					blockU = true;
 				}
 			}
