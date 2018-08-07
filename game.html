@@ -8,7 +8,7 @@
 		top: 0px;
 		left: 0px;
 	}
-    </style>
+    </style>d
   </head>
   <body onload="init()">
     <canvas id="worldLayer" width="1280" height="720"></canvas>
@@ -143,6 +143,9 @@ function update(){
 }
 
 function World() {
+	// 0: In game 1: Dead
+	this.mode = 0;
+
 	this.worldWidth = 50;
 	this.worldHeight = 50;
 
@@ -156,15 +159,23 @@ function World() {
 
 	this.islandRadius = 8;
 
+	// If wave is happenning
 	this.wave = true;
-	this.difficulty = 1; 
 
-	// Chooses where entities spawn
-	this.spwanCoords = [[0, 0], [0, this.worldHeight], [this.worldWidth, 0], [this.worldWidth, this.worldHeight]];
-	this.spawn = 0;
+	// % Chance entity will spawn per frame
+	this.difficulty = 0.5;
 
-	// Length and width of box where entities can spawn
-	this.spawnBounds = 15;
+	// How many entites spawn per wave and how many have spawned this wave
+	this.entitiesPerWave = 20;
+	this.entitiesSpawned = 0;
+
+	// How many more entities are apwned each wave
+	this.increasePerWave = 5;
+
+	// On which side entities are spawned (0: top, 1: bottom, 2: left, 3: right)
+	this.spawnSide = 0;
+
+
 
 	World.prototype.update = function(){
 		pCtx.clearRect(0, 0, windowWidth, windowHeight);
@@ -244,20 +255,40 @@ function World() {
 	}
 
 	World.prototype.spawnEntities = function(){
+		// Increases difficulty over time
+		this.difficulty += 0.0001;
+
 		// Randomly spawn entities
 		random = Math.random() * 100;
 
-		if (random < this.difficulty){
-			// Randomly select coordinates at the edges of the map
-			coords = this.spwanCoords[this.spawn];
-			
-			offsetX = getRandom(-this.spawnBounds, this.spawnBounds);
-			offsetY = getRandom(-this.spawnBounds, this.spawnBounds);
-			
-			x = coords[0] + offsetX * world.blockSize;
-			y = coords[1] + offsetY * world.blockSize;
+		// If random occurs and a wave is currently hapenning
+		if (random < this.difficulty && this.wave == true){
+			// Get coordinates from the correct side
+			if (this.spawnSide == 0){
+				x = getRandom(0, this.worldWidth * this.blockSize);
+				y = 0 + (getRandom(-3, 3) * world.blockSize);
+			}else if(this.spawnSide == 1){
+				x = getRandom(0, this.worldWidth * this.blockSize);
+				y = (this.worldHeight * this.blockSize) + (getRandom(-3, 3) * world.blockSize);
+			}else if(this.spawnSide == 2){
+				x = 0 + (getRandom(-3, 3) * world.blockSize);;
+				y = getRandom(0, this.worldWidth * this.blockSize);
+			}else{
+				x = (this.worldWidth * this.blockSize) + (getRandom(-3, 3) * world.blockSize);
+				y = getRandom(0, this.worldWidth * this.blockSize);
+			}
 
 			this.entities.push(new Entity(x, y));
+			this.entitiesSpawned += 1;
+		}
+
+		// If enough enemies have been spawned to change to the next wave
+		if (this.entitiesSpawned >= this.entitiesPerWave){
+			// Reset for next wave
+			this.entitiesSpawned = 0;
+			this.entitiesPerWave += this.increasePerWave;
+
+			this.spawnSide = Math.floor(getRandom(0, 4));
 		}
 	}
 
@@ -367,7 +398,7 @@ function World() {
 			return blockCollisionEntities[index];
 		}else{
 			// If block is not in array, therefore water
-			return true;
+			return false;
 		}
 	}
 
@@ -390,6 +421,8 @@ function Player(){
 	this.health = 100;
 	this.alive = true;
 	this.maxHealth = 100;
+
+	this.score = 0;
 
 	// Center player on island 
 	this.x = world.blockSize * (world.worldWidth / 2);
@@ -414,14 +447,29 @@ function Player(){
 	this.speed = 4;
 
 	this.damage = 10;
+	this.reach = 150; // Max distance between player and enemy, and mouse and enemy to attack
+
+	this.coolInterval = 20; // How many frames it takes for weapon to cool down
+	this.coolDown = 0; // How many frames since weapon was last used, stopped when it is the same as cool interval
 
 	Player.prototype.update = function(){
 		// Check if health is too low
 		if (this.health <= 0){
 			this.alive = false;
+			world.mode = 1;
 		}
 
 		this.movement();
+
+		// Check if player has clicked
+		if (ui.click == true){
+			this.attack();
+		}
+
+		// Increases number of frames since player last attacked, stopped when it equals cool interval
+		if (this.coolDown < this.coolInterval){
+			this.coolDown += 1;
+		}
 		
 		// Draw player
 		this.screenX = Math.floor((windowWidth / 2) - (this.width / 2));
@@ -610,6 +658,64 @@ function Player(){
 	
 		if (blockU == false){
 			this.y -= this.deltaU;
+		}
+	}
+	Player.prototype.respawn = function(){
+		world.mode = 0;
+		world.entities = [];
+
+		this.health = 100;
+		this.alive = true;
+		this.maxHealth = 100;
+
+		this.score = 0;
+
+		// Center player on island 
+		this.x = world.blockSize * (world.worldWidth / 2);
+		this.y = world.blockSize * (world.worldHeight / 2);
+
+		this.damage = 10;
+
+		// Update changes
+		world.render();
+	}
+	Player.prototype.attack = function(){
+
+		// Divide to find % amount cool down, damage factor is 1 if fully cooled down
+		damageFactor = this.coolDown / this.coolInterval;
+		
+		// Reset frames since weapon used
+		this.coolDown = 0;
+
+		damage = this.damage * damageFactor;
+
+		console.log(damage)
+
+		// Used to find closest enemy to mouse
+		var closestID = -1;
+		var closestPix = this.reach;
+		var dist;
+
+		// Loops through all entities
+		for (var x = 0; x < world.entities.length; x++){
+			// Ensures dead entities aren't counted
+			if (world.entities[x].alive == true){
+				entity = world.entities[x];
+				mouseDist = findDistance((entity.screenX + entity.width / 2) - ui.mouseX, (entity.screenY + entity.height / 2) - ui.mouseY);
+				playerDist = findDistance(entity.x - player.x, entity.y - player.y);
+				
+				// If enemy is close to player and closer to the mouse than any other enemy from beofre
+				if (mouseDist < closestPix && playerDist < this.reach){
+					closestID = x;
+					closestPix = mouseDist;
+					dist = playerDist;
+				}
+			}
+		}
+
+		// Damage enemy that is within reach by player and mouse, and is closest to mouse
+		if (closestID != -1){
+			world.entities[closestID].damage(damage);
 		}
 	}
 }
