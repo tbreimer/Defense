@@ -1,7 +1,7 @@
 # Defense
 This repository tracks the development of a game which will be released in late August.
 
-### v1.0-beta
+### v1.0-Beta
 * Respawn Screen
 * Score
 * New combat mechanism
