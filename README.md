@@ -1,17 +1,17 @@
 # Defense
 This repository tracks the development of a game which will be released in late August.
 
-### v4.0-alpha
-* Monsters
-* Abillity to kill monsters
-* New island
-* Abillity to die
+### v1.0-beta
+* Respawn Screen
+* Score
+* New combat mechanism
+* Better entity spawning
+* Better entity movement
+* Cool down after attack
 
 ### Bugs
 * Screen will sometimes be blank upon loading the page
 
 ### Planned
-
-
 
 
