@@ -1,6 +1,8 @@
-function Entity(x, y){
+function Entity(x, y, id){
 	this.x = x;
 	this.y = y;
+
+	this.id = id;
 
 	this.screenX;
 	this.screenY;
@@ -90,8 +92,10 @@ function Entity(x, y){
 	Entity.prototype.damage = function(amount){
 		this.health -= amount;
 
-		// True for one frame, makes enemy change color
-		this.damaged = true;
+		if (amount > player.coolInterval / 8){
+			// True for one frame, makes enemy change color
+			this.damaged = true;
+		}
 	}
 
 	Entity.prototype.attack = function(){
@@ -287,6 +291,44 @@ function Entity(x, y){
 				blockX = Math.floor((bottomX + this.deltaR) / world.blockSize);
 				if (world.determineEntityBlockCollision(blockX, blockY) == true){
 					blockU = true;
+				}
+			}
+		}
+
+		// Collision detection for other entities
+
+		// Loop through entities
+		for (x = 0; x < world.entities.length; x ++){
+			// If target is alive and target is not this entity
+			if (world.entities[x].alive == true && world.entities[x].id != this.id){
+				target = world.entities[x];
+
+				// For each direction, it sees if the position that the entity will be in next frame will cause it to be inside of another entity.
+				// If that is the case, it prevents movement in that direction.
+				
+				rightX = this.x + this.deltaR;
+				if (rightX + this.width >= target.x && rightX <= target.x + target.width && this.y + this.height >= target.y && this.y <= target.y + target.height){
+					blockR = true;
+				}
+
+				leftX = this.x - this.deltaL;
+				if (leftX + this.width >= target.x && leftX <= target.x + target.width && this.y + this.height >= target.y && this.y <= target.y + target.height){
+					blockL = true;
+				}
+
+				bottomY = this.y + this.deltaD;
+				if (this.x + this.width >= target.x && this.x <= target.x + target.width && bottomY + this.height >= target.y && bottomY <= target.y + target.height){
+					blockD = true;
+				}
+
+				topY = this.y - this.deltaU;
+				if (this.x + this.width >= target.x && this.x <= target.x + target.width && topY + this.height >= target.y && topY <= target.y + target.height){
+					blockU = true
+				}
+
+				// if entity is inside another entity, kill it
+				if (this.x + this.width >= target.x && this.x <= target.x + target.width && this.y + this.height >= target.y && this.y <= target.y + target.height){
+					this.alive = false;
 				}
 			}
 		}
