@@ -1,16 +1,15 @@
 # Defense
 This repository tracks the development of a game which will be released in late August.
 
-### v1.0-Beta
-* Respawn Screen
-* Score
-* New combat mechanism
-* Better entity spawning
-* Better entity movement
-* Cool down after attack
+### v2.0-beta
+* Bushes
+* Rocks
+* Saplings
+* Material
+* Breaks Between Waves
+* Entity Collision Detection
 
 ### Bugs
-* Screen will sometimes be blank upon loading the page
 
 ### Planned
 
