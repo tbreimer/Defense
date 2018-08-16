@@ -1,19 +1,20 @@
 <!DOCTYPE HTML>
 <html>
   <head>
-    <title>Defense</title>
+    <title>Defense v2.0-Beta</title>
     <style>
       canvas {
 		position: absolute;
 		top: 0px;
 		left: 0px;
 	}
-    </style>d
+    </style>
   </head>
   <body onload="init()">
     <canvas id="worldLayer" width="1280" height="720"></canvas>
     <canvas id="bgLayer" width="1280" height="720"></canvas>
     <canvas id="playerLayer" width="1280" height="720"></canvas>
+    <canvas id="additionLayer" width="1280" height="720"></canvas>
 	<canvas id="uiLayer" width="1280" height="720" onmousemove="getMousePos(event)" onmousedown="mouseDown(event)" onmouseup="mouseUp(event)"></canvas>
 <script src="js/jquery-3.2.1.min.js"></script>
 <script src="js/entities.js"></script>
@@ -27,6 +28,8 @@ var bCanvas = document.getElementById('bgLayer');
 var bCtx = bCanvas.getContext("2d");
 var pCanvas = document.getElementById('playerLayer');
 var pCtx = pCanvas.getContext("2d");
+var aCanvas = document.getElementById('additionLayer');
+var aCtx = aCanvas.getContext("2d");
 var uCanvas = document.getElementById('uiLayer');
 var uCtx = uCanvas.getContext("2d");
 console.log("Canvas Created");
@@ -45,28 +48,35 @@ var ui = new UI();
 // Database of blocks
 
 // Name
-var blockName = ["water", "grass", "sand"];
+var blockName = ["water", "grass", "sand", "bush", "rock"];
 
 // Whether they have collision
-var blockCollision = [true, false, false];
+var blockCollision = [true, false, false, false, true];
 
 // Whether blocks have collision for entities
-var blockCollisionEntities = [false, false, false];
+var blockCollisionEntities = [false, false, false, false, true];
 
 // Color on map
 var blockColor = [
 	[255, 255, 255], // water
 	[0, 255, 0], // grass
-	[255, 255, 0] // sand
+	[255, 255, 0], // sand
+	[30, 100, 20], // bush
+	[200, 200, 200] // rock
 ];
 
-// Color in world
+// Color in world, addition indicates special drawing instructions
 var blockTextures = [
 	[30, 115, 255], // water
 	[45, 190, 40], // grass
-	[255, 255, 0] // sand
+	[255, 255, 0], // sand
+	"addition", // bush
+	"addition" // rock
 ];
 
+// What number the block should have when it is created on the world.blockAttributes array
+// Attribute refers to the number a block is assigned when it is created, attributes refers to the current number of a certain block
+var blockAttribute = [0, 0, 0, 100, 0];
 
 window.addEventListener('resize', resize);
 
@@ -77,13 +87,15 @@ function resize(){
 	
 	// Change canvas size to window size
 	wCanvas.width = windowWidth; 
-	wCanvas.width = windowWidth;
 	bCanvas.width = windowWidth; 
 	pCanvas.width = windowWidth;
 	uCanvas.width = windowWidth;
+	aCanvas.width = windowWidth;
+	wCanvas.height = windowHeight;
 	bCanvas.height = windowHeight;
 	pCanvas.height = windowHeight;
 	uCanvas.height = windowHeight;
+	aCanvas.height = windowHeight;
 
 	$("body").css("overflow", "hidden");
 
@@ -95,10 +107,19 @@ function resize(){
 var fps;
 var frame = 0;
 
-// Every second this method is executed. Everytime update() fires frame is incrimented
-function calcFps(){
+// Every second this method is executed
+function everySecond(){
+	// Calculate fps
 	fps = frame;
 	frame = 0;
+
+	world.updateAdditions();
+}
+
+// Triggered at a delay, after that delay interval is over so it restarts waves
+function interval(){
+	console.log("cchnage interval")
+	world.interval = false;
 }
 
 // Find distance given width and height
@@ -115,14 +136,13 @@ function getRandom(min, max) {
 // Happens when page loads
 function init(){
 	world.create();
-	world.transcribe();
 	console.log("World Initialized")
 
 	requestAnimationFrame(update);
 	console.log("First Refresh");
 
 	//Calculate fps
-	setInterval(calcFps, 1000);
+	setInterval(everySecond, 1000);
 
 	resize();
 }
@@ -151,31 +171,46 @@ function World() {
 
 	this.blockSize = 40;
 
+	// Name of each block in world in 2d array
 	this.blockData = [];
 
-	this.error = [];
+	// A number associated with each block in 2d array to hold some attribute about the block
+	this.blockAttributes = [];
 
 	this.entities = [];
 
-	this.islandRadius = 8;
+	this.islandRadius = 15;
 
-	// If wave is happenning
-	this.wave = true;
-
-	// % Chance entity will spawn per frame
+	// % Chance entity will spawn per aframe
 	this.difficulty = 0.5;
 
 	// How many entites spawn per wave and how many have spawned this wave
 	this.entitiesPerWave = 20;
 	this.entitiesSpawned = 0;
 
-	// How many more entities are apwned each wave
+	// Wave number
+	this.wave = 1;
+
+	// How many waves in between each interval
+	this.intervalNumber = 5;
+
+	// How many frames in between each wave
+	this.intervalTime = 120000;
+
+	// How many frames have passed during current interval
+	this.intervalFrames = 0; 
+
+	// If interval is currently happenning
+	this.interval = false;
+
+	// How many more entities are spawned each wave
 	this.increasePerWave = 5;
 
 	// On which side entities are spawned (0: top, 1: bottom, 2: left, 3: right)
 	this.spawnSide = 0;
 
-
+	// If world is being rendered every frame, false if player is not moving
+	this.updating = false; 
 
 	World.prototype.update = function(){
 		pCtx.clearRect(0, 0, windowWidth, windowHeight);
@@ -197,9 +232,12 @@ function World() {
  		}
 	}
 
+	// Methods that render the world ----------
+
 	World.prototype.render = function(){
 		// Ensures the screen is only cleared before the canvas updates
 		bCtx.clearRect(0, 0, windowWidth, windowHeight);
+		aCtx.clearRect(0, 0, windowWidth, windowHeight);
 
 		// Render world
 
@@ -237,60 +275,85 @@ function World() {
  					// Ensures that water is not drawn
  					if (this.blockData[topBlockX + x][topBlockY + y] != "water"){
 
- 						//Gets the color of block from its name
+ 						// Gets the color of block from its name
 	 					colorData = this.getBlockTexture(this.blockData[topBlockX + x][topBlockY + y]);
 
-	 					// Draw block
-		 				bCtx.fillStyle = "rgb(" + colorData.r + "," + colorData.g + "," + colorData.b + ")";
-		 				bCtx.fillRect(Math.floor(x * this.blockSize - offsetX), Math.floor(y * this.blockSize - offsetY), this.blockSize, this.blockSize);
+	 					blockX = Math.floor(x * this.blockSize - offsetX);
+	 					blockY = Math.floor(y * this.blockSize - offsetY);
 
-		 				// Stroke block
-		 				bCtx.lineWidth = 2;
-		 				bCtx.fillStyle = "black";
-		 				bCtx.strokeRect(Math.floor(x * this.blockSize - offsetX), Math.floor(y * this.blockSize - offsetY), this.blockSize, this.blockSize);
+	 					// If block is addition and requires special drawing instructions
+	 					if (colorData == "addition"){
+	 						this.drawAddition(this.blockData[topBlockX + x][topBlockY + y], blockX, blockY, this.blockAttributes[topBlockX + x][topBlockY + y], topBlockX + x, topBlockY + y);
+	 					}else{
+	 						// Draw block
+			 				bCtx.fillStyle = "rgb(" + colorData.r + "," + colorData.g + "," + colorData.b + ")";
+			 				bCtx.fillRect(blockX, blockY, this.blockSize, this.blockSize);
+
+			 				// Stroke block
+			 				bCtx.lineWidth = 2;
+			 				bCtx.fillStyle = "black";
+			 				bCtx.strokeRect(blockX, blockY, this.blockSize, this.blockSize);
+	 					}
 		 			}
  				}
+
  			}
  		}
 	}
 
-	World.prototype.spawnEntities = function(){
-		// Increases difficulty over time
-		this.difficulty += 0.0001;
+	World.prototype.drawAddition = function(addition, blockX, blockY, attributes, x, y){
+		// Triggered by renderer, draws specific additions given the coords of the block they need to be draw on
+		// blockX and blockY are where the addition needs to be draw, x and y are the block's coords in the array
 
-		// Randomly spawn entities
-		random = Math.random() * 100;
+		// Draw grass block behind addition
+		colorData = this.getBlockTexture("grass");
+		bCtx.fillStyle = "rgb(" + colorData.r + "," + colorData.g + "," + colorData.b + ")";
+		bCtx.fillRect(blockX, blockY, this.blockSize, this.blockSize);
 
-		// If random occurs and a wave is currently hapenning
-		if (random < this.difficulty && this.wave == true){
-			// Get coordinates from the correct side
-			if (this.spawnSide == 0){
-				x = getRandom(0, this.worldWidth * this.blockSize);
-				y = 0 + (getRandom(-3, 3) * world.blockSize);
-			}else if(this.spawnSide == 1){
-				x = getRandom(0, this.worldWidth * this.blockSize);
-				y = (this.worldHeight * this.blockSize) + (getRandom(-3, 3) * world.blockSize);
-			}else if(this.spawnSide == 2){
-				x = 0 + (getRandom(-3, 3) * world.blockSize);;
-				y = getRandom(0, this.worldWidth * this.blockSize);
-			}else{
-				x = (this.worldWidth * this.blockSize) + (getRandom(-3, 3) * world.blockSize);
-				y = getRandom(0, this.worldWidth * this.blockSize);
-			}
+		// Stroke block
+		bCtx.lineWidth = 2;
+		bCtx.fillStyle = "black";
+		bCtx.strokeRect(blockX, blockY, this.blockSize, this.blockSize);
 
-			this.entities.push(new Entity(x, y));
-			this.entitiesSpawned += 1;
-		}
+		if (addition == "bush"){
+			// In the world.blockAttributes array, each bush has a value from 0 - 100 
+			// which represents its radius and therefore how much material can be harvested from it
 
-		// If enough enemies have been spawned to change to the next wave
-		if (this.entitiesSpawned >= this.entitiesPerWave){
-			// Reset for next wave
-			this.entitiesSpawned = 0;
-			this.entitiesPerWave += this.increasePerWave;
+			// Gets proportion
+			largestRadius = this.blockSize / 2 - 3;
+			factor = largestRadius / blockAttribute[3];
 
-			this.spawnSide = Math.floor(getRandom(0, 4));
+			centerX = blockX + this.blockSize / 2;
+			centerY = blockY + this.blockSize / 2;
+			radius = Math.floor(factor * attributes);
+
+      		// Fill and stroke
+			aCtx.beginPath();
+      		aCtx.arc(centerX, centerY, radius, 0, 2 * Math.PI, false);
+      		aCtx.fillStyle = 'green';
+      		aCtx.fill();
+      		aCtx.lineWidth = 2;
+      		aCtx.strokeStyle = 'black';
+      		aCtx.stroke();
+
+		}else if (addition == "rock"){
+
+			centerX = blockX + this.blockSize / 2;
+			centerY = blockY + this.blockSize / 2;
+			radius = this.blockSize / 2 - 3;
+
+      		// Fill and stroke
+			bCtx.beginPath();
+      		bCtx.arc(centerX, centerY, radius, 0, 2 * Math.PI, false);
+      		bCtx.fillStyle = 'gray';
+      		bCtx.fill();
+      		bCtx.lineWidth = 2;
+      		bCtx.strokeStyle = 'black';
+      		bCtx.stroke();
 		}
 	}
+
+	// Methods that initialize the world ----------
 
 	World.prototype.create = function(){
 		// Erase current world
@@ -340,6 +403,34 @@ function World() {
  				}
  			}
  		}
+
+ 		// Addition spawning
+
+ 		// Loop through all the blocks
+ 		for (var x = 0; x < this.worldWidth; x++){
+ 			for (var y = 0; y < this.worldHeight; y++){
+
+ 				// Check if current block is grass
+ 				if (this.determineBlock(x, y) == "grass"){
+
+ 					// 5 Percent chance bush is spawned on grass and 5 percent chance rock is spawned
+ 					rand = getRandom(0, 100);
+
+	 				if (rand < 5){
+	 					// Make bush
+	 					wCtx.fillStyle = 'rgb(30, 100, 20)';
+ 						wCtx.fillRect(x, y, 1, 1);
+	 				}else if (rand < 10){
+	 					// Make rock
+	 					wCtx.fillStyle = 'rgb(200, 200, 200)';
+ 						wCtx.fillRect(x, y, 1, 1);
+	 				}
+ 				}
+ 			}
+ 		}
+
+ 		// Transcribe world onto array
+ 		world.transcribe();
 	}
 
 	World.prototype.transcribe = function(){
@@ -356,7 +447,158 @@ function World() {
 
 			this.blockData.push(rowArray);
 		}
+
+		// Intialize block attribute data
+
+		// Loops through all the blocks
+		for (var x = 0; x < this.worldWidth; x++){
+
+			// Is added onto 2d array
+			rowArray = [];
+
+ 			for (var y = 0; y < this.worldHeight; y++){
+ 				blockType = this.determineBlock(x, y);
+ 				rowArray.push(this.getBlockAttribute(blockType));
+ 			}
+
+ 			this.blockAttributes.push(rowArray);
+ 		}
 	}
+
+	// Other methods ----------
+
+	World.prototype.updateAdditions = function(){
+		// Triggered every second, updates all additions in world
+
+		// Loops through all the blocks
+		for (var x = 0; x < this.worldWidth; x++){
+ 			for (var y = 0; y < this.worldHeight; y++){
+ 				// Determine if block is addition
+	 			colorData = this.getBlockTexture(this.blockData[x][y]);
+
+	 			// If block is a bush
+	 			if (this.blockData[x][y] == "bush"){
+
+	 				// If bush is less then maximum size, grow it
+	 				if (blockAttribute[3] > this.blockAttributes[x][y]){
+	 					this.blockAttributes[x][y] += 0.5;
+	 				}
+	 			}
+
+ 			}
+ 		}
+
+ 		world.render();
+	}
+
+	World.prototype.spawnEntities = function(){
+		// Triggered every frame
+
+		// Increases difficulty over time
+		this.difficulty += 0.0001;
+
+		// Randomly spawn entities
+		random = Math.random() * 100;
+
+		// If random occurs and a wave is currently hapenning
+		if (random < this.difficulty && this.interval == false){
+			// Get coordinates from the correct side
+			if (this.spawnSide == 0){
+				x = getRandom(0, this.worldWidth * this.blockSize);
+				y = 0 + (getRandom(-3, 3) * world.blockSize);
+			}else if(this.spawnSide == 1){
+				x = getRandom(0, this.worldWidth * this.blockSize);
+				y = (this.worldHeight * this.blockSize) + (getRandom(-3, 3) * world.blockSize);
+			}else if(this.spawnSide == 2){
+				x = 0 + (getRandom(-3, 3) * world.blockSize);;
+				y = getRandom(0, this.worldWidth * this.blockSize);
+			}else{
+				x = (this.worldWidth * this.blockSize) + (getRandom(-3, 3) * world.blockSize);
+				y = getRandom(0, this.worldWidth * this.blockSize);
+			}
+
+			this.entities.push(new Entity(x, y, this.entities.length));
+			this.entitiesSpawned += 1;
+		}
+
+		// If enough enemies have been spawned to change to the next wave
+		if (this.entitiesSpawned >= this.entitiesPerWave){
+
+			// Check if interval should happen
+			if (this.wave % this.intervalNumber == 0){
+				this.wave += 1;
+				this.interval = true;
+
+				this.entitiesSpawned = 0;
+				this.entitiesPerWave += this.increasePerWave;
+
+			}else if (this.interval == false){
+				// Reset for next wave
+				this.entitiesSpawned = 0;
+				this.entitiesPerWave += this.increasePerWave;
+
+				this.spawnSide = Math.floor(getRandom(0, 4));
+
+				this.wave += 1;
+
+			}
+		}
+
+		// If interval is happening, increase the amount of frames that have happened since interval was triggered
+		if (this.interval == true){
+			this.intervalFrames += 1;
+		}
+
+		// If the number of frames since the interval has been triggered is more than the amount of frames per interval, restart the waves
+		if (this.intervalFrames >= this.intervalTime){
+			this.interval = false;
+			this.intervalFrames = 0;
+		}
+	}
+
+	World.prototype.collectMaterial = function(x, y){
+		// Collect material from block specified in coords
+
+		// Prevent error from trying to access array out of bounds
+
+		if (x >= 0 && x < this.worldWidth && y >= 0 && y < this.worldWidth){
+
+			if (this.blockData[x][y] == "bush"){
+
+				// decrease its size
+				this.blockAttributes[x][y] -= 1;
+
+				// If bush is less than minimum size, replace it with a grass block
+				if (this.blockAttributes[x][y] < (blockAttribute[3] / 4)){
+					this.blockData[x][y] = "grass";
+					player.saplings += 1;
+
+				}else{
+					// Else increase the player's material (to prevent player from being able to infinitely increase material)
+					player.material += 1;
+				}
+			}
+
+			this.render();
+		}
+	}
+
+	World.prototype.createAddition = function(x, y, additionName, attribute){
+		// Returns true if addition could be created, false if it could not
+
+		if (this.blockData[x][y] == "grass"){ // Additions can only be put on grass
+			this.blockData[x][y] = additionName;
+			this.blockAttributes[x][y] = attribute;
+
+			this.render();
+
+			return true;
+		}else{
+			return false;
+		}
+	}
+
+	// Methods to determine attributes of blocks ----------
 
 	World.prototype.determineBlock = function(x, y){
 		// Determine block name via coordinates through the map
@@ -402,16 +644,32 @@ function World() {
 		}
 	}
 
+	World.prototype.getBlockAttribute = function(block){
+		// Gets the starting attribute of a certain block
+		for (var x = 0; x < blockName.length; x++){
+			if (block == blockName[x]){
+				return blockAttribute[x];
+			}
+		}
+
+		return 0;
+	}
+
 	World.prototype.getBlockTexture = function(block){
 		// Determine block texture via block name
 
 		for (var x = 0; x < blockName.length; x++){
 			if (block == blockName[x]){
-				return{
-					r: blockTextures[x][0],
-					g: blockTextures[x][1],
-					b: blockTextures[x][2]
-				}  
+				// Determine if block needs special drawing instructions or is just a color
+				if (Array.isArray(blockTextures[x]) == false){
+					return blockTextures[x];
+				}else{
+					return{
+						r: blockTextures[x][0],
+						g: blockTextures[x][1],
+						b: blockTextures[x][2]
+					}  
+				}
 			}
 		}
 	}
@@ -423,6 +681,8 @@ function Player(){
 	this.maxHealth = 100;
 
 	this.score = 0;
+
+	this.material = 0;
 
 	// Center player on island 
 	this.x = world.blockSize * (world.worldWidth / 2);
@@ -450,7 +710,12 @@ function Player(){
 	this.reach = 150; // Max distance between player and enemy, and mouse and enemy to attack
 
 	this.coolInterval = 20; // How many frames it takes for weapon to cool down
-	this.coolDown = 0; // How many frames since weapon was last used, stopped when it is the same as cool interval
+	this.coolDown = 20; // How many frames since weapon was last used, stopped when it is the same as cool interval
+
+	this.saplings = 0; // How many saplings the player has
+
+	// What the player is selecting 0: Collector 1: Sword 2: Saplings
+	this.selection = 0;
 
 	Player.prototype.update = function(){
 		// Check if health is too low
@@ -461,9 +726,29 @@ function Player(){
 
 		this.movement();
 
-		// Check if player has clicked
-		if (ui.click == true){
-			this.attack();
+		// Check if player pressed mouse, what is done depends on what is selected
+		if (ui.mousePressed == true){
+
+			if (this.selection == 0){ // Collect material
+				world.collectMaterial(ui.mouseBx, ui.mouseBy);
+			}
+
+			if (this.selection == 2 && this.saplings > 0){
+				var placed = world.createAddition(ui.mouseBx, ui.mouseBy, "bush", (blockAttribute[3] / 4)); // Create sapling
+
+				if (placed == true){
+					// Sapling was placed, remove one from inventory
+					this.saplings -= 1;
+				}
+			}
+		}
+
+		// Fires for one frame as soon as player presses mouse, what is done depends on what is selected
+		if (ui.press == true){
+			if (this.selection == 1){
+				this.attack(); // Use sword
+			}
+			
 		}
 
 		// Increases number of frames since player last attacked, stopped when it equals cool interval
@@ -689,8 +974,6 @@ function Player(){
 
 		damage = this.damage * damageFactor;
 
-		console.log(damage)
-
 		// Used to find closest enemy to mouse
 		var closestID = -1;
 		var closestPix = this.reach;
@@ -751,6 +1034,21 @@ function set(key){
 	if(key == 68){
 		player.movementR = true;
 	}
+
+	// Change item selected
+
+	// 1
+	if (key == 49){
+		player.selection = 0; // Collector
+	}
+	// 2
+	if (key == 50){
+		player.selection = 1; // Sword
+	}
+	// 3
+	if (key == 51){
+		player.selection = 2; // Sapling
+	}
 }
 
 function unSet(key){
@@ -789,6 +1087,7 @@ function getMousePos(evt) {
 
 function mouseDown(evt){
 	ui.mousePressed = true;
+	ui.press = true; // Will be true for one frame
 }
 function mouseUp(evt){
 	ui.mousePressed = false;
