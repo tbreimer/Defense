@@ -1,14 +1,21 @@
 healthBar = new HealthBar();
 respawnScreen = new RespawnScreen();
 scoreLabel = new ScoreLabel();
+materialLabel = new MaterialLabel();
 debugMenu = new DebugMenu();
 coolDownIndicator = new CoolDownIndicator();
+inventory = new Inventory();
 
 function UI(){
 	this.mouseX;
 	this.mouseY;
+
+	this.mouseBx;
+	this.mouseBy;
+
 	this.mousePressed = false;
 	this.click = false;
+	this.press = false;
 
 	this.buttons = [];
 
@@ -19,19 +26,31 @@ function UI(){
 		// In game UI
 		healthBar.update();
 		scoreLabel.update();
+		materialLabel.update();
 		coolDownIndicator.update();
+
+		inventory.update();
 
 		if (world.mode == 1){
 			respawnScreen.update();
 		}
 
+		// Gets the block coordinates of the mouse
+		canvasTopx = player.x - ((windowWidth / 2) - world.blockSize); 
+		canvasTopy = player.y - ((windowHeight / 2) - world.blockSize); 
+		
+		// Subtracted by one to fit correctly with array indexing
+		this.mouseBx = Math.floor((canvasTopx + this.mouseX) / world.blockSize) - 1;
+		this.mouseBy = Math.floor((canvasTopy + this.mouseY) / world.blockSize) - 1;
+
 		this.click = false; // True for one frame after player releases mouse
+		this.press = false; // True for one frame as soon as player clicks mouse
 	}
 }
 
 function DebugMenu(){
 	this.textSize = 16;
-	this.y = 90;
+	this.y = 130;
 	this.x = 10;
 
 	DebugMenu.prototype.update = function(){
@@ -44,7 +63,7 @@ function DebugMenu(){
 		uCtx.fillText("FPS " + fps, this.x, this.y);
 		uCtx.fillText("X " + player.x + ", " + Math.floor(player.x / world.blockSize) + ", " + ui.mouseX, this.x, this.y + (space * 1));
 		uCtx.fillText("Y " + player.y + ", " + Math.floor(player.y / world.blockSize) + ", " + ui.mouseY, this.x, this.y + (space * 2));
-		uCtx.fillText("Wave " + world.entitiesSpawned + "/" + world.entitiesPerWave, this.x, this.y + (space * 3));
+		uCtx.fillText("Wave " + world.wave + ": " + world.entitiesSpawned + "/" + world.entitiesPerWave, this.x, this.y + (space * 3));
 	}
 }
 
@@ -68,10 +87,24 @@ function HealthBar(){
 function ScoreLabel(){
 	this.x = 10;
 	this.y = 70;
-
 	this.textSize = 30;
+
 	ScoreLabel.prototype.update = function(){
 		text = player.score;
+
+		uCtx.font = this.textSize + "px Arial";
+		uCtx.fillStyle = "black";
+		uCtx.fillText(text, this.x, this.y);
+	}
+}
+
+function MaterialLabel(){
+	this.x = 10;
+	this.y = 100;
+	this.textSize = 20;
+
+	MaterialLabel.prototype.update = function(){
+		text = "Material: " + player.material;
 
 		uCtx.font = this.textSize + "px Arial";
 		uCtx.fillStyle = "black";
@@ -154,5 +187,51 @@ function RespawnScreen(){
 
 		uCtx.fillStyle = "rgb(60, 60, 60)";
 		uCtx.fillText(text, tX, tY);
+	}
+}
+
+function Inventory(){
+	this.x = 230;
+	this.y = 32;
+	this.font = 20;
+	this.spacing = 10;
+	Inventory.prototype.update = function(){
+		// Collector
+		uCtx.font = this.font + "px Arial";
+		uCtx.fillStyle = "black";
+
+		// 1st item
+		firstText = "Collector";
+		firstWidth = uCtx.measureText(firstText).width;
+		firstX = this.x;
+		uCtx.fillText(firstText, firstX, this.y);
+
+		// Box
+		if (player.selection == 0){
+			uCtx.strokeRect(firstX - 2, this.y - this.font + 2, firstWidth + 4, this.font);
+		}
+
+		// 2nd Item
+		secondText = "Sword";
+		secondWidth = uCtx.measureText(secondText).width;
+		secondX = firstX + firstWidth + this.spacing;
+		uCtx.fillText(secondText, secondX, this.y);
+
+		// Box
+		if (player.selection == 1){
+			uCtx.strokeRect(secondX - 2, this.y - this.font + 2, secondWidth + 4, this.font);
+		}
+
+		// 3rd Item
+		thirdText = "Saplings: " + player.saplings;
+		thirdWidth = uCtx.measureText(thirdText).width;
+		thirdX = secondX + secondWidth + this.spacing;
+		uCtx.fillText(thirdText, thirdX, this.y);
+
+		// Box
+		if (player.selection == 2){
+			uCtx.strokeRect(thirdX - 2, this.y - this.font + 2, thirdWidth + 4, this.font);
+		}
+		
 	}
 }
