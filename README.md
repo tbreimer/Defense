@@ -1,13 +1,14 @@
 # Defense
 This repository tracks the development of a game which will be released in late August.
 
-### v2.0-beta
-* Bushes
-* Rocks
-* Saplings
-* Material
-* Breaks Between Waves
-* Entity Collision Detection
+### v3.0-beta
+* Bow and Arrow
+* Experience + Upgrade Weapons
+* Create Weapons
+* Bandage
+* Bomb
+* Different Enemy Types
+* Optimized Gameplay
 
 ### Bugs
 
