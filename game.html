@@ -1,7 +1,7 @@
 <!DOCTYPE HTML>
 <html>
   <head>
-    <title>Defense v2.0-Beta</title>
+    <title>Defense v3.0-Beta</title>
     <style>
       canvas {
 		position: absolute;
@@ -19,6 +19,7 @@
 <script src="js/jquery-3.2.1.min.js"></script>
 <script src="js/entities.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/world.js"></script>
 <script>
 	
 // Canvas
@@ -118,7 +119,6 @@ function everySecond(){
 
 // Triggered at a delay, after that delay interval is over so it restarts waves
 function interval(){
-	console.log("cchnage interval")
 	world.interval = false;
 }
 
@@ -133,6 +133,29 @@ function getRandom(min, max) {
   return Math.random() * (max - min) + min;
 }
 
+function drawImageRot(ctx, img, x , y, width, height, deg){
+
+    // Convert degrees to radian 
+    var rad = deg * Math.PI / 180;
+
+    // Set the origin to the center of the image
+    ctx.translate(x + width / 2, y + height / 2);
+
+    // Rotate the canvas around the origin
+    ctx.rotate(rad);
+
+    // Draw the image    
+    ctx.drawImage(img, Math.floor(width / 2 * (-1)), Math.floor(height / 2 * (-1)), width, height);
+
+    // Reset the canvas  
+    ctx.rotate(rad * ( -1 ) );
+    ctx.translate((x + width / 2) * (-1), (y + height / 2) * (-1));
+}
+
+function calcAngleDegrees(x, y) {
+	return Math.atan2(y, x) * 180 / Math.PI;
+}
+
 // Happens when page loads
 function init(){
 	world.create();
@@ -145,534 +168,117 @@ function init(){
 	setInterval(everySecond, 1000);
 
 	resize();
+
+	setDifficulty();
+
+	player.spawn();
 }
 
 function update(){
 	frame += 1;
 
-	world.update();
-
-	//If player is alive, update them
-	if (player.alive == true){
+	// In Game
+	if (world.mode == 0){
+		world.update();
 		player.update();
+		ui.update();
 	}
 
-	ui.update();
+	// Respawn Screen
+	if (world.mode == 1){
+		world.update();
+		ui.update();
+	}
+
+	// Paused
+	if (world.mode == 2){
+
+	}
 
 	requestAnimationFrame(update);
 }
 
-function World() {
-	// 0: In game 1: Dead
-	this.mode = 0;
-
-	this.worldWidth = 50;
-	this.worldHeight = 50;
-
-	this.blockSize = 40;
-
-	// Name of each block in world in 2d array
-	this.blockData = [];
-
-	// A number associated with each block in 2d array to hold some attribute about the block
-	this.blockAttributes = [];
-
-	this.entities = [];
-
-	this.islandRadius = 15;
-
-	// % Chance entity will spawn per aframe
-	this.difficulty = 0.5;
-
-	// How many entites spawn per wave and how many have spawned this wave
-	this.entitiesPerWave = 20;
-	this.entitiesSpawned = 0;
-
-	// Wave number
-	this.wave = 1;
-
-	// How many waves in between each interval
-	this.intervalNumber = 5;
-
-	// How many frames in between each wave
-	this.intervalTime = 120000;
-
-	// How many frames have passed during current interval
-	this.intervalFrames = 0; 
-
-	// If interval is currently happenning
-	this.interval = false;
-
-	// How many more entities are spawned each wave
-	this.increasePerWave = 5;
-
-	// On which side entities are spawned (0: top, 1: bottom, 2: left, 3: right)
-	this.spawnSide = 0;
-
-	// If world is being rendered every frame, false if player is not moving
-	this.updating = false; 
-
-	World.prototype.update = function(){
-		pCtx.clearRect(0, 0, windowWidth, windowHeight);
-		uCtx.clearRect(0, 0, windowWidth, windowHeight);
-
-		this.spawnEntities();
-
- 		// Assures that world is only rendered when player is moving
- 		if (player.movementU != false || player.movementD != false || player.movementL != false || player.movementR != false){
-			this.render();
- 		}
-
- 		// Updates all entities
- 		for (var x = 0; x < this.entities.length; x++){
- 			// Only update if entity is alive
- 			if (this.entities[x].alive == true){
- 				this.entities[x].update();
- 			}
- 		}
-	}
-
-	// Methods that render the world ----------
-
-	World.prototype.render = function(){
-		// Ensures the screen is only cleared before the canvas updates
-		bCtx.clearRect(0, 0, windowWidth, windowHeight);
-		aCtx.clearRect(0, 0, windowWidth, windowHeight);
-
-		// Render world
-
-		// Water background
- 		bCtx.fillStyle = "rgb(30, 115, 255)";
- 		bCtx.fillRect(0, 0, windowWidth, windowHeight);
-
- 		// Gets coordinates of the top left of the canvas
- 		topX = Math.round(player.x - (windowWidth / 2));
- 		topY = Math.round(player.y - (windowHeight / 2));
-
- 		// Finds the top left block closest to the top left of the canvas
- 		topBlockX = Math.floor(topX / this.blockSize);
- 		topBlockY = Math.floor(topY / this.blockSize);
-
- 		// Gets that block's coordinates
- 		topBlockCoordX = topBlockX * this.blockSize;
- 		topBlockCoordY = topBlockY * this.blockSize;
-
- 		// Finds offset from top left of canvas to the block's coordinates
- 		offsetX = topX - topBlockCoordX;
- 		offsetY = topY - topBlockCoordY;
-
- 		// Gets the number of blocks in the canvas
- 		blockWidth = Math.ceil(windowWidth / this.blockSize) + 1;
- 		blockHeight = Math.ceil(windowHeight / this.blockSize) + 1;
-
- 		// Loop through all the blocks that need to be drawn
- 		for (var x = 0; x < blockWidth; x++){
- 			for (var y = 0; y < blockHeight; y++){
-
- 				// Ensures that blocks not in the array will not be drawn
- 				if (topBlockX + x >= 0 && topBlockX + x < this.worldWidth && topBlockY + y >= 0 && topBlockY + y < this.worldWidth){
-
- 					// Ensures that water is not drawn
- 					if (this.blockData[topBlockX + x][topBlockY + y] != "water"){
-
- 						// Gets the color of block from its name
-	 					colorData = this.getBlockTexture(this.blockData[topBlockX + x][topBlockY + y]);
-
-	 					blockX = Math.floor(x * this.blockSize - offsetX);
-	 					blockY = Math.floor(y * this.blockSize - offsetY);
-
-	 					// If block is addition and requires special drawing instructions
-	 					if (colorData == "addition"){
-	 						this.drawAddition(this.blockData[topBlockX + x][topBlockY + y], blockX, blockY, this.blockAttributes[topBlockX + x][topBlockY + y], topBlockX + x, topBlockY + y);
-	 					}else{
-	 						// Draw block
-			 				bCtx.fillStyle = "rgb(" + colorData.r + "," + colorData.g + "," + colorData.b + ")";
-			 				bCtx.fillRect(blockX, blockY, this.blockSize, this.blockSize);
-
-			 				// Stroke block
-			 				bCtx.lineWidth = 2;
-			 				bCtx.fillStyle = "black";
-			 				bCtx.strokeRect(blockX, blockY, this.blockSize, this.blockSize);
-	 					}
-		 			}
- 				}
-
- 			}
- 		}
-	}
-
-	World.prototype.drawAddition = function(addition, blockX, blockY, attributes, x, y){
-		// Triggered by renderer, draws specific additions given the coords of the block they need to be draw on
-		// blockX and blockY are where the addition needs to be draw, x and y are the block's coords in the array
-
-		// Draw grass block behind addition
-		colorData = this.getBlockTexture("grass");
-		bCtx.fillStyle = "rgb(" + colorData.r + "," + colorData.g + "," + colorData.b + ")";
-		bCtx.fillRect(blockX, blockY, this.blockSize, this.blockSize);
-
-		// Stroke block
-		bCtx.lineWidth = 2;
-		bCtx.fillStyle = "black";
-		bCtx.strokeRect(blockX, blockY, this.blockSize, this.blockSize);
-
-		if (addition == "bush"){
-			// In the world.blockAttributes array, each bush has a value from 0 - 100 
-			// which represents its radius and therefore how much material can be harvested from it
-
-			// Gets proportion
-			largestRadius = this.blockSize / 2 - 3;
-			factor = largestRadius / blockAttribute[3];
-
-			centerX = blockX + this.blockSize / 2;
-			centerY = blockY + this.blockSize / 2;
-			radius = Math.floor(factor * attributes);
-
-      		// Fill and stroke
-			aCtx.beginPath();
-      		aCtx.arc(centerX, centerY, radius, 0, 2 * Math.PI, false);
-      		aCtx.fillStyle = 'green';
-      		aCtx.fill();
-      		aCtx.lineWidth = 2;
-      		aCtx.strokeStyle = 'black';
-      		aCtx.stroke();
-
-		}else if (addition == "rock"){
-
-			centerX = blockX + this.blockSize / 2;
-			centerY = blockY + this.blockSize / 2;
-			radius = this.blockSize / 2 - 3;
-
-      		// Fill and stroke
-			bCtx.beginPath();
-      		bCtx.arc(centerX, centerY, radius, 0, 2 * Math.PI, false);
-      		bCtx.fillStyle = 'gray';
-      		bCtx.fill();
-      		bCtx.lineWidth = 2;
-      		bCtx.strokeStyle = 'black';
-      		bCtx.stroke();
-		}
-	}
-
-	// Methods that initialize the world ----------
-
-	World.prototype.create = function(){
-		// Erase current world
-		wCtx.fillStyle = "white";
-		wCtx.fillRect(0, 0, this.worldWidth, this.worldHeight);
-
-		// Sand background
-
-		// Loops through all the blocks
-		for (var x = 0; x < this.worldWidth; x++){
- 			for (var y = 0; y < this.worldHeight; y++){
- 				// Find center of world
- 				centerX = this.worldWidth / 2;
- 				centerY = this.worldHeight / 2;
-
- 				// Coord distance from center to current block
- 				width = centerX - x;
- 				height = centerY - y;
-
- 				// Distance from center to current block
- 				distance = findDistance(width, height);
-
- 				// If block is less than island width (plus a little more for the sand to show) draw a block
- 				if (distance < this.islandRadius + 1.5){
- 					wCtx.fillStyle = 'rgb(255, 255, 0)';
- 					wCtx.fillRect(x, y, 1, 1);
- 				}
- 				
- 			}
- 		}
-
- 		// Grass background
-
- 		for (var x = 0; x < this.worldWidth; x++){
- 			for (var y = 0; y < this.worldHeight; y++){
- 				centerX = this.worldWidth / 2;
- 				centerY = this.worldHeight / 2;
-
- 				width = centerX - x;
- 				height = centerY - y;
-
- 				distance = findDistance(width, height);
- 				
- 				if (distance < this.islandRadius){
- 					wCtx.fillStyle = 'rgb(0, 255, 0)';
- 					wCtx.fillRect(x, y, 1, 1);
- 				}
- 			}
- 		}
-
- 		// Addition spawning
-
- 		// Loop through all the blocks
- 		for (var x = 0; x < this.worldWidth; x++){
- 			for (var y = 0; y < this.worldHeight; y++){
-
- 				// Check if current block is grass
- 				if (this.determineBlock(x, y) == "grass"){
-
- 					// 5 Percent chance bush is spawned on grass and 5 percent chance rock is spawned
- 					rand = getRandom(0, 100);
-
-	 				if (rand < 5){
-	 					// Make bush
-	 					wCtx.fillStyle = 'rgb(30, 100, 20)';
- 						wCtx.fillRect(x, y, 1, 1);
-	 				}else if (rand < 10){
-	 					// Make rock
-	 					wCtx.fillStyle = 'rgb(200, 200, 200)';
- 						wCtx.fillRect(x, y, 1, 1);
-	 				}
- 				}
- 			}
- 		}
-
- 		// Transcribe world onto array
- 		world.transcribe();
-	}
-
-	World.prototype.transcribe = function(){
-		// Transcibes pixels that makeup world onto an array
-		for (var x = 0; x < this.worldWidth; x++){
-
-			// Is added onto 2d array
-			rowArray = [];
-
-			for (var y = 0; y < this.worldHeight; y++){
-				blockType = this.determineBlock(x, y);
-				rowArray.push(blockType);
-			}
-
-			this.blockData.push(rowArray);
-		}
-
-		// Intialize block attribute data
-
-		// Loops through all the blocks
-		for (var x = 0; x < this.worldWidth; x++){
-
-			// Is added onto 2d array
-			rowArray = [];
-
- 			for (var y = 0; y < this.worldHeight; y++){
- 				blockType = this.determineBlock(x, y);
- 				rowArray.push(this.getBlockAttribute(blockType));
- 			}
-
- 			this.blockAttributes.push(rowArray);
- 		}
-	}
-
-	// Other methods ----------
-
-	World.prototype.updateAdditions = function(){
-		// Triggered every second, updates all additions in world
-
-		// Loops through all the blocks
-		for (var x = 0; x < this.worldWidth; x++){
- 			for (var y = 0; y < this.worldHeight; y++){
- 				// Determine if block is addition
-	 			colorData = this.getBlockTexture(this.blockData[x][y]);
-
-	 			// If block is a bush
-	 			if (this.blockData[x][y] == "bush"){
-
-	 				// If bush is less then maximum size, grow it
-	 				if (blockAttribute[3] > this.blockAttributes[x][y]){
-	 					this.blockAttributes[x][y] += 0.5;
-	 				}
-	 			}
-
- 			}
- 		}
-
- 		world.render();
-	}
-
-	World.prototype.spawnEntities = function(){
-		// Triggered every frame
-
-		// Increases difficulty over time
-		this.difficulty += 0.0001;
-
-		// Randomly spawn entities
-		random = Math.random() * 100;
-
-		// If random occurs and a wave is currently hapenning
-		if (random < this.difficulty && this.interval == false){
-			// Get coordinates from the correct side
-			if (this.spawnSide == 0){
-				x = getRandom(0, this.worldWidth * this.blockSize);
-				y = 0 + (getRandom(-3, 3) * world.blockSize);
-			}else if(this.spawnSide == 1){
-				x = getRandom(0, this.worldWidth * this.blockSize);
-				y = (this.worldHeight * this.blockSize) + (getRandom(-3, 3) * world.blockSize);
-			}else if(this.spawnSide == 2){
-				x = 0 + (getRandom(-3, 3) * world.blockSize);;
-				y = getRandom(0, this.worldWidth * this.blockSize);
-			}else{
-				x = (this.worldWidth * this.blockSize) + (getRandom(-3, 3) * world.blockSize);
-				y = getRandom(0, this.worldWidth * this.blockSize);
-			}
-
-			this.entities.push(new Entity(x, y, this.entities.length));
-			this.entitiesSpawned += 1;
-		}
-
-		// If enough enemies have been spawned to change to the next wave
-		if (this.entitiesSpawned >= this.entitiesPerWave){
-
-			// Check if interval should happen
-			if (this.wave % this.intervalNumber == 0){
-				this.wave += 1;
-				this.interval = true;
-
-				this.entitiesSpawned = 0;
-				this.entitiesPerWave += this.increasePerWave;
-
-			}else if (this.interval == false){
-				// Reset for next wave
-				this.entitiesSpawned = 0;
-				this.entitiesPerWave += this.increasePerWave;
-
-				this.spawnSide = Math.floor(getRandom(0, 4));
-
-				this.wave += 1;
-
-			}
-		}
-
-		// If interval is happening, increase the amount of frames that have happened since interval was triggered
-		if (this.interval == true){
-			this.intervalFrames += 1;
-		}
-
-		// If the number of frames since the interval has been triggered is more than the amount of frames per interval, restart the waves
-		if (this.intervalFrames >= this.intervalTime){
-			this.interval = false;
-			this.intervalFrames = 0;
-		}
-	}
-
-	World.prototype.collectMaterial = function(x, y){
-		// Collect material from block specified in coords
-
-		// Prevent error from trying to access array out of bounds
-
-		if (x >= 0 && x < this.worldWidth && y >= 0 && y < this.worldWidth){
-
-			if (this.blockData[x][y] == "bush"){
-
-				// decrease its size
-				this.blockAttributes[x][y] -= 1;
-
-				// If bush is less than minimum size, replace it with a grass block
-				if (this.blockAttributes[x][y] < (blockAttribute[3] / 4)){
-					this.blockData[x][y] = "grass";
-					player.saplings += 1;
-
-				}else{
-					// Else increase the player's material (to prevent player from being able to infinitely increase material)
-					player.material += 1;
-				}
-			}
-
-			this.render();
-		}
-	}
-
-	World.prototype.createAddition = function(x, y, additionName, attribute){
-		// Returns true if addition could be created, false if it could not
-
-		if (this.blockData[x][y] == "grass"){ // Additions can only be put on grass
-			this.blockData[x][y] = additionName;
-			this.blockAttributes[x][y] = attribute;
-
-			this.render();
-
-			return true;
-		}else{
-			return false;
-		}
-	}
-
-	// Methods to determine attributes of blocks ----------
-
-	World.prototype.determineBlock = function(x, y){
-		// Determine block name via coordinates through the map
-
-		block = wCtx.getImageData(x, y, 1, 1).data;
-		
-		// Loops through all the blocks and finds a matching one
-		for (var x = 0; x < blockName.length; x++){ 
-			if (block[0] == blockColor[x][0] && block[1] == blockColor[x][1] && block[2] == blockColor[x][2]){
-				return blockName[x];
-			}
-		}
-
-		// If block cannot be identified
-		return "water";
-	}
-
-	World.prototype.determineBlockCollision = function(x, y){
-		// Determine collision via coordinates through the world array
-		if (x >= 0 && x < this.worldWidth && y >= 0 && y < this.worldWidth){
-			block = world.blockData[x][y];
-
-			index = blockName.indexOf(block);
-
-			return blockCollision[index];
-		}else{
-			// If block is not in array, therefore water
-			return true;
-		}
-	}
-
-	World.prototype.determineEntityBlockCollision = function(x, y){
-		// Determine collision for entitiesa via coordinates through the world array
-		if (x >= 0 && x < this.worldWidth && y >= 0 && y < this.worldWidth){
-			block = world.blockData[x][y];
-
-			index = blockName.indexOf(block);
-
-			return blockCollisionEntities[index];
-		}else{
-			// If block is not in array, therefore water
-			return false;
-		}
-	}
-
-	World.prototype.getBlockAttribute = function(block){
-		// Gets the starting attribute of a certain block
-		for (var x = 0; x < blockName.length; x++){
-			if (block == blockName[x]){
-				return blockAttribute[x];
-			}
-		}
-
-		return 0;
-	}
-
-	World.prototype.getBlockTexture = function(block){
-		// Determine block texture via block name
-
-		for (var x = 0; x < blockName.length; x++){
-			if (block == blockName[x]){
-				// Determine if block needs special drawing instructions or is just a color
-				if (Array.isArray(blockTextures[x]) == false){
-					return blockTextures[x];
-				}else{
-					return{
-						r: blockTextures[x][0],
-						g: blockTextures[x][1],
-						b: blockTextures[x][2]
-					}  
-				}
-			}
-		}
-	}
+function setDifficulty(){
+	// World
+	world.worldWidth = 50;
+	world.worldHeight = 50;
+
+	world.blockSize = 40;
+
+	world.islandRadius = 15;
+
+	// Entity spawning
+	world.difficulty = 0.1;
+	world.difficultyIncrease = 0.00002;
+
+	world.speedSpawn = 15;
+	world.tankSpawn = 15;
+	world.archerSpawn = 5;
+
+	world.entitiesPerWave = 5;
+	world.increasePerWave = 1.25;
+	world.intervalNumber = 3;
+	world.intervalTime = 7200;
+
+	world.entityLimiter = 2;
+
+	// Player
+	player.speed = 4;
+	player.maxHealth = 100;
+
+	player.damage = 10;
+	player.damageXP =       [0,  100, 200, 300, 400, 600, 2000, 10000];
+	player.damageUpgrades = [10, 12,  15,  17,  20,  25,  35,   50];
+
+	player.reach = 125; // Max distance between player and enemy, and mouse and enemy to attack
+	player.reachXP =       [0,  200,  300,  1000, 2000];
+	player.reachUpgrades = [125, 140, 150,  200,  250];
+
+	player.swordCool = 20;
+	player.swordCoolXP =       [0,  100, 200, 300, 400, 1000, 2000];
+	player.swordCoolUpgrades = [20, 19,  18,  16,  15,  10,  7];
+
+	// Bow + Arrow
+	player.power = 10;
+	player.powerXP =       [0,  100, 200, 300, 400, 600, 2000];
+	player.powerUpgrades = [10, 12,  15,  17,  20,  25,  35];
+	
+	player.bowCool = 20;
+	player.bowCoolXP =       [0,  100, 200, 300, 400, 1000, 2000];
+	player.bowCoolUpgrades = [20, 19,  18,  16,  15,  10,   7];
+
+	player.arrows = 50;
+	player.arrowCost = 20;
+
+	player.bombs = 1;
+	player.bombCost = 1000;
+
+	player.bandages = 10;
+	player.bandageCost = 150;
+	player.bandageHealth = 10;
+
+	// Entity attributes
+	world.archerHealth = 20;
+	world.archerSpeed = 1;
+	world.archerRate = 240;
+	world.archerArrowSpeed = 10;
+	world.archerArrowDamage = 15;
+	world.archerScore = 40;
+
+	world.tankHealth = 50;
+	world.tankSpeed = 0.75;
+	world.tankDamage = 2;
+	world.tankScore = 50;
+
+	world.speedHealth = 15;
+	world.speedSpeed = 2;
+	world.speedDamage = 0.25;
+	world.speedScore = 30;
+
+	world.entityHealth = 20;
+	world.entitySpeed = 1;
+	world.entityDamage = 0.5;
+	world.entityScore = 20;
 }
 
 function Player(){
@@ -683,6 +289,8 @@ function Player(){
 	this.score = 0;
 
 	this.material = 0;
+
+	this.xp = 0;
 
 	// Center player on island 
 	this.x = world.blockSize * (world.worldWidth / 2);
@@ -706,16 +314,48 @@ function Player(){
 
 	this.speed = 4;
 
+	// Inventory
+
+	// Sword
 	this.damage = 10;
-	this.reach = 150; // Max distance between player and enemy, and mouse and enemy to attack
+	this.damageXP =       [0,  100, 200, 300, 400, 600];
+	this.damageUpgrades = [10, 12,  15,  17,  20,  25];
 
-	this.coolInterval = 20; // How many frames it takes for weapon to cool down
-	this.coolDown = 20; // How many frames since weapon was last used, stopped when it is the same as cool interval
+	this.reach = 125; // Max distance between player and enemy, and mouse and enemy to attack
+	this.reachXP =       [0,  200,  300,  1000];
+	this.reachUpgrades = [125, 140, 150,  200];
 
+	this.swordCool = 20;
+	this.swordCoolXP =       [0,  100, 200, 300, 400, 600];
+	this.swordCoolUpgrades = [20, 19,  18,  16,  15,  10];
+
+	// Bow + Arrow
+	this.power = 10;
+	this.powerXP =       [0,  100, 200, 300, 400, 600];
+	this.powerUpgrades = [10, 12,  15,  17,  20,  25];
+	
+	this.bowCool = 20;
+	this.bowCoolXP =       [0,  100, 200, 300, 400, 600];
+	this.bowCoolUpgrades = [20, 19,  18,  16,  15,  10];
+
+	this.arrows = 50;
+	this.arrowCost = 5;
+
+	this.bombs = 1;
+	this.bombCost = 500;
+
+	this.bandages = 10;
+	this.bandageCost = 80;
+	this.bandageHealth = 10;
+
+	// Saplings
 	this.saplings = 0; // How many saplings the player has
 
-	// What the player is selecting 0: Collector 1: Sword 2: Saplings
+	// What the player is selecting 0: Collector 1: Sword 3: Bombs 4: Bandages 5: Saplings
 	this.selection = 0;
+
+	this.coolInterval = this.swordCool; // How many frames until weapon is fully cooled down, is equal to either bowCool or swordCool
+	this.coolDown = 20; // How many frames since weapon was last used, stopped when it is the same as cool interval
 
 	Player.prototype.update = function(){
 		// Check if health is too low
@@ -733,9 +373,8 @@ function Player(){
 				world.collectMaterial(ui.mouseBx, ui.mouseBy);
 			}
 
-			if (this.selection == 2 && this.saplings > 0){
+			if (this.selection == 5 && this.saplings > 0){
 				var placed = world.createAddition(ui.mouseBx, ui.mouseBy, "bush", (blockAttribute[3] / 4)); // Create sapling
-
 				if (placed == true){
 					// Sapling was placed, remove one from inventory
 					this.saplings -= 1;
@@ -749,11 +388,33 @@ function Player(){
 				this.attack(); // Use sword
 			}
 			
+			if (this.selection == 2){
+				this.shoot(); // Use bow
+			}
+
+			if (this.selection == 3){
+				this.throwBomb(); // Use bomb
+			}
+
+			if (this.selection == 4 && this.bandages > 0 && this.health < 100){
+				this.bandages -= 1;
+
+				if (this.health > 90){ // If bandage will make health more than 100, just set health to 100
+					this.health = 100;
+				}else{
+					this.health += this.bandageHealth;
+				}
+			}
 		}
 
 		// Increases number of frames since player last attacked, stopped when it equals cool interval
 		if (this.coolDown < this.coolInterval){
 			this.coolDown += 1;
+		}
+
+		// If playes is out of bounds of the map, start lowering health
+		if (this.x < 0 || this.y < 0 || this.y > world.worldHeight * world.blockSize || this.x > world.worldWidth * world.blockSize){
+			player.decreaseHealth(1);
 		}
 		
 		// Draw player
@@ -767,6 +428,7 @@ function Player(){
 		pCtx.lineWidth = 2;
 		pCtx.strokeRect(this.screenX, this.screenY, this.width, this.height);
 	}
+
 	Player.prototype.movement = function(){
 
 		// Handles diagonal movement
@@ -927,25 +589,31 @@ function Player(){
 			}
 		}
 
-		// If no block is in the way, change the coordinates
+		// If no block is in the way, or player is stuck inside a block which has collision change the coordinates
 
-		if (blockR == false){
+		blockX = Math.floor(this.x / world.blockSize);
+		blockY = Math.floor(this.y / world.blockSize);
+
+		stuck = world.determineBlockCollision(blockX, blockY);
+
+		if (blockR == false || stuck == true){
 			this.x += this.deltaR;
 		}
 
-		if (blockL == false){
+		if (blockL == false || stuck == true){
 			this.x -= this.deltaL;
 		}
 		
-		if (blockD == false){
+		if (blockD == false || stuck == true){
 			this.y += this.deltaD;
 		}
 	
-		if (blockU == false){
+		if (blockU == false || stuck == true){
 			this.y -= this.deltaU;
 		}
 	}
-	Player.prototype.respawn = function(){
+
+	Player.prototype.spawn = function(){
 		world.mode = 0;
 		world.entities = [];
 
@@ -955,15 +623,26 @@ function Player(){
 
 		this.score = 0;
 
-		// Center player on island 
 		this.x = world.blockSize * (world.worldWidth / 2);
 		this.y = world.blockSize * (world.worldHeight / 2);
 
-		this.damage = 10;
+		// Try 500 times to put player on random block, if it can't player just spawns in the middle of the world
+		for (var x = 0; x < 500; x++){
+			blockX = Math.floor(getRandom(0, world.worldWidth));
+			blockY = Math.floor(getRandom(0, world.worldHeight));
+
+			if (world.blockData[blockX][blockY] == "grass" || world.blockData[blockX][blockY] == "sand"){
+				this.x = world.blockSize * blockX + world.blockSize / 2;
+				this.y = world.blockSize * blockY + world.blockSize / 2;
+
+				break;
+			}
+		}
 
 		// Update changes
 		world.render();
 	}
+
 	Player.prototype.attack = function(){
 
 		// Divide to find % amount cool down, damage factor is 1 if fully cooled down
@@ -1001,6 +680,350 @@ function Player(){
 			world.entities[closestID].damage(damage);
 		}
 	}
+
+	Player.prototype.shoot = function(){
+
+		// Divide to find % amount cool down, damage factor is 1 if fully cooled down
+		damageFactor = this.coolDown / this.coolInterval;
+
+		// Make damage proportional to amount cooled down
+		damage = this.power * damageFactor;
+
+		// Make speed proportional to amount cooled down, as long as it makes speed more than 4
+		if (damage > 4){
+			speed = damage;
+		}else{
+			speed = 4;
+		}
+
+		startX = player.x;
+		startY = player.y;
+
+		targetX = ui.mouseWx;
+		targetY = ui.mouseWy;
+
+		// Reset frames since weapon used
+		this.coolDown = 0;
+
+		if (this.arrows > 0){
+			world.arrows.push(new Arrow(startX, startY, targetX, targetY, speed, damage, "player", world.arrows.length));
+			this.arrows -= 1;
+		}
+	}
+
+	Player.prototype.throwBomb = function(){
+		if (this.bombs > 0){
+			startX = player.x;
+			startY = player.y;
+
+			targetX = ui.mouseWx;
+			targetY = ui.mouseWy;
+
+			this.bombs -= 1;
+			world.bombs.push(new Bomb(startX, startY, targetX, targetY, world.bombs.length));
+		}
+	}
+
+	Player.prototype.upgrade = function(stat){
+		// Upgrades weapon as described by stat
+		
+		if (stat == "power"){
+			upgradeIndex = this.powerUpgrades.indexOf(this.power) + 1;
+			
+			if (upgradeIndex < this.powerUpgrades.length && this.xp >= this.powerXP[upgradeIndex]){
+				this.power = this.powerUpgrades[upgradeIndex];
+				this.xp -= this.powerXP[upgradeIndex];
+			}
+		}
+
+		if (stat == "bowCool"){
+			upgradeIndex = this.bowCoolUpgrades.indexOf(this.bowCool) + 1;
+			
+			if (upgradeIndex < this.bowCoolUpgrades.length && this.xp >= this.bowCoolXP[upgradeIndex]){
+				this.bowCool = this.bowCoolUpgrades[upgradeIndex];
+				this.xp -= this.bowCoolXP[upgradeIndex];
+			}
+		}
+
+		if (stat == "damage"){
+			upgradeIndex = this.damageUpgrades.indexOf(this.damage) + 1;
+			
+			if (upgradeIndex < this.damageUpgrades.length && this.xp >= this.damageXP[upgradeIndex]){
+				this.damage = this.damageUpgrades[upgradeIndex];
+				this.xp -= this.damageXP[upgradeIndex];
+			}
+		}
+
+		if (stat == "reach"){
+			upgradeIndex = this.reachUpgrades.indexOf(this.reach) + 1;
+			
+			if (upgradeIndex < this.reachUpgrades.length && this.xp >= this.reachXP[upgradeIndex]){
+				this.reach = this.reachUpgrades[upgradeIndex];
+				this.xp -= this.reachXP[upgradeIndex];
+			}
+		}
+
+		if (stat == "swordCool"){
+			upgradeIndex = this.swordCoolUpgrades.indexOf(this.swordCool) + 1;
+			
+			if (upgradeIndex < this.swordCoolUpgrades.length && this.xp >= this.swordCoolXP[upgradeIndex]){
+				this.swordCool = this.swordCoolUpgrades[upgradeIndex];
+				this.xp -= this.swordCoolXP[upgradeIndex];
+			}
+		}
+	}
+
+	Player.prototype.addItem = function(item, amount){
+		if (item == "arrow" && player.material >= player.arrowCost * amount){
+			player.arrows += amount;
+			player.material -= player.arrowCost * amount;
+		}
+
+		if (item == "bomb" && player.material >= player.bombCost * amount){
+			player.bombs += amount;
+			player.material -= player.bombCost * amount;
+		}
+
+		if (item == "bandage" && player.material >= player.bandageCost * amount){
+			player.bandages += amount;
+			player.material -= player.bandageCost * amount;
+		}
+	}
+
+	Player.prototype.decreaseHealth = function(amount){
+		// If player than less health than what they are going to be damaged, set health to 0
+		if (player.health < amount){
+			player.health = 0;
+		}else{
+			player.health -= amount;
+		}
+	}
+}
+
+function Arrow(x, y, targetX, targetY, speed, damage, type, index){
+
+    this.index = index;
+    
+    this.x = x; // Start/Current Position
+    this.y = y;
+
+    this.screenX;
+    this.screenY;
+    
+    this.targetX = targetX; // Target
+    this.targetY = targetY;
+
+    this.speed = speed;
+
+    this.damage = damage;
+
+    // Is "player" or "entity", depending on who fired the arrow
+    this.type = type;
+    
+    this.width = 5
+    this.height = 15;
+
+    this.img = new Image();
+	this.img.src = "weapons/arrow.png";
+
+    this.degrees = calcAngleDegrees(this.x - this.targetX, this.y - this.targetY) - 90;
+    
+    // The change per frame in x and y coords to move arrow to target
+	this.cX = 0;
+	this.cY = 0;
+	
+	// Finds how many pixels arrow has to travel in X axis for every pixel in Y axis
+	this.cX = (this.x - this.targetX) / (this.y - this.targetY); // Change (x / y)
+	this.cY = 1;
+
+	// Solves for a ratio that makes the arrow travel at the speed
+	this.ratio = (Math.sqrt((this.cX * this.cX) + (this.cY * this.cY))) / (this.speed);
+	
+	// Redefine using ratio
+	this.cX = this.cX / this.ratio;
+	this.cY = this.cY / this.ratio;
+
+	// Negate values if target needs to go the opposite way
+	if (this.y - this.targetY > 0){
+		this.cX = -this.cX;
+		this.cY = -this.cY;
+	}
+    
+    Arrow.prototype.update = function(index){
+        this.index = index; // Updates bullet's index
+
+        this.frames ++;
+        
+        // Movement 
+        this.x += this.cX;                    
+        this.y += this.cY;
+
+        this.screenX = this.x - player.x + (windowWidth / 2);
+		this.screenY = this.y - player.y + (windowHeight / 2);
+
+        drawImageRot(pCtx, this.img, this.screenX, this.screenY, this.width, this.height, this.degrees);
+        
+        //Check if off screen
+        if (this.screenX < -50 || this.screenX > windowWidth + 50){
+            world.arrows.splice(this.index, 1);
+        }
+        
+        if (this.screenY < 0 || this.screenY > windowHeight + 50){
+            world.arrows.splice(this.index, 1);
+        }
+
+        // Collision detection with entity
+
+        // Only test is arrow was shot by player
+        if (this.type == "player"){
+	        for (var x = 0; x < world.entities.length; x++){
+	            eX = world.entities[x].screenX;
+	            eY = world.entities[x].screenY;
+	            eWidth = world.entities[x].width;
+	            eHeight = world.entities[x].height;
+
+	            if (this.screenX > eX - 5 && this.screenX < eX + eWidth + 5){
+	                if (this.screenY > eY - 5 && this.screenY < eY + eHeight + 5){
+
+	                	if (world.entities[x].alive == true){
+	                		world.entities[x].damage(this.damage);
+	                		world.arrows.splice(this.index, 1);
+	                	}
+	                }
+	            }
+	        }
+	    }
+
+	    // Collision detection with player
+
+	    // Only test if arrow came from entity
+	    if (this.type == "entity"){
+	    	if (this.screenX > player.screenX && this.screenX < player.screenX + player.width){
+	            if (this.screenY > player.screenY && this.screenY < player.screenY + player.height){
+					world.arrows.splice(this.index, 1);
+	                player.decreaseHealth(this.damage);
+	            }
+	        }
+	    }
+
+    }
+}
+
+function Bomb(x, y, targetX, targetY, index){
+
+    this.index = index;
+    
+    this.x = x; // Start/Current Position
+    this.y = y;
+
+    this.screenX;
+    this.screenY;
+    
+    this.targetX = targetX; // Target
+    this.targetY = targetY;
+    
+    this.width = 20;
+    this.height = 20;
+    
+    // The change per frame in x and y coords to move arrow to target
+	this.cX = 0;
+	this.cY = 0;
+	
+	// Finds how many pixels arrow has to travel in X axis for every pixel in Y axis
+	this.cX = (this.x - this.targetX) / (this.y - this.targetY); // Change (x / y)
+	this.cY = 1;
+
+	this.speed = 10;
+
+	this.explosionRadius = 3.25;
+	this.entityRadius = 400;
+
+	// Solves for a ratio that makes the arrow travel at the speed
+	this.ratio = (Math.sqrt((this.cX * this.cX) + (this.cY * this.cY))) / (this.speed);
+	
+	// Redefine using ratio
+	this.cX = this.cX / this.ratio;
+	this.cY = this.cY / this.ratio;
+
+	// Negate values if target needs to go the opposite way
+	if (this.y - this.targetY > 0){
+		this.cX = -this.cX;
+		this.cY = -this.cY;
+	}
+    
+    Bomb.prototype.update = function(index){
+        this.index = index; // Updates bullet's index
+
+        this.frames ++;
+        
+        // Movement 
+        this.x += this.cX;                    
+        this.y += this.cY;
+
+        this.screenX = this.x - player.x + (windowWidth / 2);
+		this.screenY = this.y - player.y + (windowHeight / 2);
+
+        // Draw bomb
+		pCtx.beginPath();
+  		pCtx.arc(this.screenX, this.screenY, 10, 0, 2 * Math.PI, false);
+  		pCtx.fillStyle = 'black';
+  		pCtx.fill();
+
+  		// If near target
+  		if (this.x > this.targetX - 5 && this.x < targetX + 5 && this.y > this.targetY - 5 && this.y < this.targetY + 5){
+  			this.explode();
+  			world.bombs.splice(this.index, 1);
+  		}
+    
+        //Check if off screen
+        if (this.screenX < -50 || this.screenX > windowWidth + 50){
+            world.bombs.splice(this.index, 1);
+        }
+        
+        if (this.screenY < 0 || this.screenY > windowHeight + 50){
+            world.bombs.splice(this.index, 1);
+        }
+    }
+
+    Bomb.prototype.explode = function(){
+    	// Finds what block the bomb is on
+    	canvasTopx = player.x - ((windowWidth / 2) - world.blockSize); 
+		canvasTopy = player.y - ((windowHeight / 2) - world.blockSize); 
+
+ 		blockX = Math.floor((canvasTopx + this.screenX) / world.blockSize) - 1;
+		blockY = Math.floor((canvasTopy + this.screenY) / world.blockSize) - 1;
+
+		// Loops through all the blocks in the world
+    	for (var x = 0; x < world.worldWidth; x++){
+ 			for (var y = 0; y < world.worldHeight; y++){
+ 				width = blockX - x;
+ 				height = blockY - y;
+
+ 				distance = findDistance(width, height);
+ 				
+ 				// If the block is within the explosion radius, change the block to water
+ 				if (distance < this.explosionRadius){
+ 					world.blockData[x][y] = "water";
+ 				}
+ 			}
+ 		}
+
+ 		// Loops through all the enemies in the world
+ 		for (var x = 0; x < world.entities.length; x++){
+ 			width = this.x - world.entities[x].x;
+ 			height = this.y - world.entities[x].y;
+
+ 			distance = findDistance(width, height);
+ 				
+			// If the entity is within the explosion radius, kill the entity
+			if (distance < this.entityRadius){
+				world.entities[x].health = 0;
+			}
+ 		}
+
+ 		world.update();
+ 		world.render();
+    }
 }
 
 function keyDown(evt){
@@ -1035,6 +1058,17 @@ function set(key){
 		player.movementR = true;
 	}
 
+	// R
+	if (key == 82){
+		if (ui.pauseScreen == true){
+			ui.pauseScreen = false;
+			world.mode = 2;
+		}else{
+			ui.pauseScreen = true;
+			world.mode = 0;
+		}
+	}
+	
 	// Change item selected
 
 	// 1
@@ -1044,10 +1078,26 @@ function set(key){
 	// 2
 	if (key == 50){
 		player.selection = 1; // Sword
+		player.coolDown = 0;
+		player.coolInterval = player.swordCool;
 	}
 	// 3
 	if (key == 51){
-		player.selection = 2; // Sapling
+		player.selection = 2; // Bow + Arrow
+		player.coolDown = 0;
+		player.coolInterval = player.bowCool;
+	}
+	// 4
+	if (key == 52){
+		player.selection = 3; // Bombs
+	}
+	// 5
+	if (key == 53){
+		player.selection = 4; // Bandages
+	}
+	// 6
+	if (key == 54){
+		player.selection = 5; // Saplings
 	}
 }
 
@@ -1060,13 +1110,37 @@ function unSet(key){
 	if(key == 65){
 		player.movementL = false;
 	}
-	// Scontains
+	// S
 	if(key == 83){
 		player.movementD = false;
 	}
 	// D
 	if(key == 68){
 		player.movementR = false;
+	}
+
+	// Q
+	if (key == 81){
+		if (ui.upgradeScreen == false && ui.screen == false){
+			upgradeScreen.open();
+		}else{
+			upgradeScreen.close();
+		}
+	}
+
+	// E
+	if (key == 69){
+		if (ui.createScreen == false && ui.screen == false){
+			createScreen.open();
+		}else{
+			createScreen.close();
+		}
+	}
+
+	// Escape
+	if (key == 27){
+		upgradeScreen.close();
+		createScreen.close();
 	}
 
 	// Causes the world to be rendered at the resting state of movement, which prevents jittery-ness when player moves again
