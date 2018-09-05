@@ -7,8 +7,8 @@ function Entity(x, y, health, speed, attackValue, score, color, id){
 	this.screenX;
 	this.screenY;
 
-	this.width = 30;
-	this.height = 30;
+	this.width = world.blockSize * 0.75;
+	this.height = world.blockSize * 0.75;
 
 	// Allows enemy to fade in when they are spawned
 	this.transparency = 0;
@@ -58,6 +58,10 @@ function Entity(x, y, health, speed, attackValue, score, color, id){
 			this.remove();
 		}
 
+		this.render();
+	}
+
+	Entity.prototype.render = function(){
 		// Draw entity
 
 		// Decrease transparency if recently spawned
@@ -85,11 +89,9 @@ function Entity(x, y, health, speed, attackValue, score, color, id){
 			pCtx.fillStyle = this.color;
 		}
 		
-		pCtx.fillRect(Math.floor(this.screenX), Math.floor(this.screenY), this.width, this.height);
-
 		pCtx.strokeStyle = "black";
-		pCtx.lineWidth = 2;
-		pCtx.strokeRect(Math.floor(this.screenX), Math.floor(this.screenY), this.width, this.height);
+
+		roundRect(pCtx, this.screenX, this.screenY, this.width, this.height, 5, true, true);
 
 		pCtx.globalAlpha = 1;
 	}
@@ -122,6 +124,7 @@ function Entity(x, y, health, speed, attackValue, score, color, id){
 	}
 
 	Entity.prototype.movement = function(){
+
 		// Difference between player and entity x and y coords
 		xDif = this.x - player.x;
 		yDif = this.y - player.y;
@@ -149,6 +152,8 @@ function Entity(x, y, health, speed, attackValue, score, color, id){
 	    		cY = -cY;
 	    	}
 	    }
+
+
 
 	    // Convert cX and cY values into 4-directional delta and movement variables
 	    if (cX < 0){
@@ -365,8 +370,8 @@ function Archer(x, y, health, speed, rate, arrowSpeed, arrowDamage, score, color
 	this.screenX;
 	this.screenY;
 
-	this.width = 30;
-	this.height = 30;
+	this.width = world.blockSize * 0.75;
+	this.height = world.blockSize * 0.75;
 
 	// Allows enemy to fade in when they are spawned
 	this.transparency = 0;
@@ -451,11 +456,13 @@ function Archer(x, y, health, speed, rate, arrowSpeed, arrowDamage, score, color
 			pCtx.fillStyle = this.color;
 		}
 		
-		pCtx.fillRect(Math.floor(this.screenX), Math.floor(this.screenY), this.width, this.height);
+		//pCtx.fillRect(Math.floor(this.screenX), Math.floor(this.screenY), this.width, this.height);
 
 		pCtx.strokeStyle = "black";
-		pCtx.lineWidth = 2;
-		pCtx.strokeRect(Math.floor(this.screenX), Math.floor(this.screenY), this.width, this.height);
+		//pCtx.lineWidth = 1;
+		//pCtx.strokeRect(Math.floor(this.screenX), Math.floor(this.screenY), this.width, this.height);
+
+		roundRect(pCtx, this.screenX, this.screenY, this.width, this.height, 5, true, true);
 
 		pCtx.globalAlpha = 1;
 
