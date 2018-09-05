@@ -3,10 +3,12 @@ healthBar = new HealthBar();
 respawnScreen = new RespawnScreen();
 upgradeScreen = new UpgradeScreen();
 createScreen = new CreateScreen();
+pauseScreen = new PauseScreen();
 
-scoreLabel = new ScoreLabel();
-materialLabel = new MaterialLabel();
-xpLabel = new XPLabel();
+screenButtons = new ScreenButtons();
+waveIndicator = new WaveIndicator();
+
+labels = new Labels();
 
 debugMenu = new DebugMenu();
 
@@ -14,8 +16,31 @@ coolDownIndicator = new CoolDownIndicator();
 
 inventory = new Inventory();
 
+function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
+
+	ctx.beginPath();
+	ctx.moveTo(x + radius, y);
+	ctx.lineTo(x + width - radius, y);
+	ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+	ctx.lineTo(x + width, y + height - radius);
+	ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+	ctx.lineTo(x + radius, y + height);
+	ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+	ctx.lineTo(x, y + radius);
+	ctx.quadraticCurveTo(x, y, x + radius, y);
+	ctx.closePath();
+
+	if (fill == true) {
+	ctx.fill();
+	}
+
+	if (stroke == true) {
+	ctx.stroke();
+	}
+}
+
 function Button(){
-	Button.prototype.update = function(x, y, width, height, text, textOffset, font){
+	Button.prototype.update = function(x, y, width, height, text, textOffset, font, centered){
 
 		this.x = x;
 		this.y = y;
@@ -27,28 +52,35 @@ function Button(){
 		this.textOffset = textOffset;
 		this.font = font;
 
+		this.centered = centered;
+
 		// Text vars
 		uCtx.font = this.font + "px Arial";
 		textWidth = uCtx.measureText(this.text).width;
 
 		// If text width is more than the entire width, change that
 		if (textWidth > this.width){
-			this.width = textWidth + 5;
+			this.width = textWidth + 10;
+		}
+
+		if (this.centered == true){
+			this.x = windowWidth / 2 - this.width / 2;
 		}
 
 		textX = this.x + (this.width / 2) - (textWidth / 2);
 		textY = this.y + this.textOffset;
 
 		// Outline
-		uCtx.strokeStyle = "black";
-		uCtx.strokeRect(this.x, this.y, this.width, this.height);
+		uCtx.strokeStyle = "rgb(100, 100, 100)";
+		uCtx.lineWidth = 2;
+		roundRect(uCtx, this.x, this.y, this.width, this.height, 12, false, true);
 
 		clicked = false;
 
 		if (ui.mouseX > this.x && ui.mouseX < this.x + this.width){
 			if (ui.mouseY > this.y && ui.mouseY < this.y + this.height){
-				uCtx.fillStyle = "rgb(180, 180, 180)";
-				uCtx.fillRect(this.x, this.y, this.width, this.height);
+				uCtx.fillStyle = "rgb(225, 225, 225)";
+				roundRect(uCtx, this.x, this.y, this.width, this.height, 12, true, true);
 				if (ui.click == true){
 					clicked = true;
 				}
@@ -56,7 +88,7 @@ function Button(){
 		}
 
 		// Draw text
-		uCtx.fillStyle = "black";
+		uCtx.fillStyle = "rgb(100, 100, 100)";
 		uCtx.fillText(this.text, textX, textY);
 
 		if (clicked == true){
@@ -85,18 +117,33 @@ function UI(){
 	this.createScreen = false;
 	this.pauseScreen = false;
 
+	this.debugMenu = false;
+
 	this.screen = false;
 	UI.prototype.update = function(){
-		debugMenu.update();
+		uCtx.clearRect(0, 0, windowWidth, windowHeight);
+
+		if(this.debugMenu == true){
+			debugMenu.update();
+		}
 
 		// In game UI
 		healthBar.update();
-		scoreLabel.update();
-		xpLabel.update();
-		materialLabel.update();
-		coolDownIndicator.update();
 
+		screenButtons.update();
+		waveIndicator.update();
+
+		labels.update();
+
+		if (player.selection == 1 || player.selection == 2 && player.alive == true){
+			coolDownIndicator.update();
+		}
+		
 		inventory.update();
+
+		if (tutorial.present == true){
+			tutorial.update();
+		}
 
 		if (world.mode == 1){
 			respawnScreen.update();
@@ -110,7 +157,13 @@ function UI(){
 			createScreen.update();
 		}
 
-		if (this.createScreen == true || this.upgradeScreen == true){
+		if (this.pauseScreen == true){
+			if (world.mode == 0 || world.mode == 2){
+				pauseScreen.update();
+			}
+		}
+
+		if (this.createScreen == true || this.upgradeScreen == true || this.pauseScreen == true){
 			this.screen = true;
 		}else{
 			this.screen = false;
@@ -127,7 +180,7 @@ function UI(){
 		// Get the world coordinates of the mouse
 		this.mouseWx = Math.floor(canvasTopx + this.mouseX) - 40;
 		this.mouseWy = Math.floor(canvasTopy + this.mouseY) - 40;
-
+		
 		this.click = false; // True for one frame after player releases mouse
 		this.press = false; // True for one frame as soon as player clicks mouse
 	}
@@ -135,7 +188,7 @@ function UI(){
 
 function DebugMenu(){
 	this.textSize = 16;
-	this.y = 160;
+	this.y = 720;
 	this.x = 10;
 
 	DebugMenu.prototype.update = function(){
@@ -145,72 +198,114 @@ function DebugMenu(){
 		// Difference in y value between elements
 		space = this.textSize + 4;
 
+		this.y = windowHeight - 70;
+
 		uCtx.fillText("FPS " + fps, this.x, this.y);
 		uCtx.fillText("X " + player.x + ", " + Math.floor(player.x / world.blockSize) + ", " + ui.mouseX, this.x, this.y + (space * 1));
 		uCtx.fillText("Y " + player.y + ", " + Math.floor(player.y / world.blockSize) + ", " + ui.mouseY, this.x, this.y + (space * 2));
-		uCtx.fillText("Wave " + world.wave + ": " + world.entitiesSpawned + "/" + world.entitiesPerWave, this.x, this.y + (space * 3));
-		uCtx.fillText("Entities " + world.entityCounter + "/" + world.entityLimiter , this.x, this.y + (space * 4));
-		uCtx.fillText("Interval " + Math.round(world.intervalFrames / 60) + "/" + Math.round(world.intervalTime / 60), this.x, this.y + (space * 5));
+		uCtx.fillText("Entities " + world.entityCounter + "/" + world.entityLimiter , this.x, this.y + (space * 3));
+
 	}
 }
 
 function HealthBar(){
-	this.x = 10;
-	this.y = 10;
-	this.width = 200;
+	this.x = 20;
+	this.y = 15;
+	this.width = 500;
 	this.height = 30;
 
 	HealthBar.prototype.update = function(){
+		this.width = Math.floor(windowWidth / 3);
+
 		// Gray bar
-		uCtx.fillStyle = "rgb(200, 200, 200)";
-		uCtx.fillRect(this.x, this.y, this.width, this.height);
+		uCtx.globalAlpha = 0.75;
+		uCtx.fillStyle = "rgb(220, 220, 220)";
+		roundRect(uCtx, this.x, this.y, this.width, this.height, 10, true, false);
+		uCtx.globalAlpha = 1;
 
-		// Health indicator
-		multiplier = (this.width - 10) / player.maxHealth;
-		uCtx.fillStyle = "red";
-		uCtx.fillRect(15, 15, player.health * multiplier, this.height - 10);
+		this.x = windowWidth / 2 - this.width / 2;
+
+		if (player.health > 1){
+			// Health indicator
+			uCtx.globalAlpha = 1;
+			multiplier = (this.width - 10) / player.maxHealth;
+			uCtx.fillStyle = "red";
+			roundRect(uCtx, this.x + 5, this.y + 5, player.health * multiplier, this.height - 10, 7, true, false);
+		}
 	}
 }
 
-function ScoreLabel(){
+function Labels(){
 	this.x = 10;
-	this.y = 70;
-	this.textSize = 30;
+	this.y = 45;
+	this.width = 150;
+	this.height = 200;
 
-	ScoreLabel.prototype.update = function(){
-		text = player.score;
+	this.bgColor = "rgb(220, 220, 220)";
+	Labels.prototype.update = function(){
+		this.x = windowWidth - this.width - 15;
 
-		uCtx.font = this.textSize + "px Arial";
-		uCtx.fillStyle = "black";
-		uCtx.fillText(text, this.x, this.y);
-	}
-}
+		// ---------- Background
+		uCtx.fillStyle = this.bgColor;
+		uCtx.strokeStyle = "rgb(120, 120, 120)"
+		uCtx.globalAlpha = 0.75;
+		roundRect(uCtx, this.x, this.y, this.width, this.height, 10, true, true);
+		uCtx.globalAlpha = 1;
 
-function XPLabel(){
-	this.x = 10;
-	this.y = 100;
-	this.textSize = 20;
+		// ----------- Score Label
+		uCtx.fillStyle = "rgb(100, 100, 100)";
+		uCtx.font = "30px Arial";
+		scoreText = player.score;
+		scoreWidth = uCtx.measureText(scoreText).width;
+		scoreX = this.x + (this.width / 2) - (scoreWidth / 2);
+		scoreY = this.y + 50;
+		uCtx.fillText(scoreText, scoreX, scoreY);
 
-	XPLabel.prototype.update = function(){
-		text = "XP: " + player.xp;
+		// ---------- XP Label
+		uCtx.fillStyle = "rgb(100, 100, 100)";
+		uCtx.font = "25px Arial";
+		xpText = "XP " + player.xp;
+		xpWidth = uCtx.measureText(xpText).width;
+		xpX = this.x + (this.width / 2) - (xpWidth / 2);
+		xpY = this.y + 105;
+		uCtx.fillText(xpText, xpX, xpY);
 
-		uCtx.font = this.textSize + "px Arial";
-		uCtx.fillStyle = "black";
-		uCtx.fillText(text, this.x, this.y);
-	}
-}
+		// ---------- Material Label
+		uCtx.fillStyle = "rgb(100, 100, 100)";
+		uCtx.font = "25px Arial";
+		materialTText = player.material;
+		materialTWidth = uCtx.measureText(materialTText).width;
 
-function MaterialLabel(){
-	this.x = 10;
-	this.y = 130;
-	this.textSize = 20;
+		materialWidth = 25;
+		materialHeight = 25;
 
-	MaterialLabel.prototype.update = function(){
-		text = "Material: " + player.material;
+		totalWidth = materialWidth + 10 + materialTWidth;
 
-		uCtx.font = this.textSize + "px Arial";
-		uCtx.fillStyle = "black";
-		uCtx.fillText(text, this.x, this.y);
+		materialX = this.x + (this.width / 2) - (totalWidth / 2);
+		materialTX = materialX + materialWidth + 10;
+
+		materialY = this.y + 145;
+		materialTY = this.y + 166;
+
+		uCtx.fillStyle = "rgb(165, 83, 36)";
+		uCtx.strokeStyle = "rgb(126, 61, 31)";
+
+		roundRect(uCtx, materialX, materialY, materialWidth, materialHeight, 0, true, true);
+
+		uCtx.beginPath();
+		uCtx.moveTo(materialX, materialY);
+		uCtx.lineTo(materialX + materialWidth, materialY + materialHeight);
+		uCtx.stroke();
+
+		uCtx.beginPath();
+		uCtx.moveTo(materialX + materialWidth, materialY);
+		uCtx.lineTo(materialX, materialY + materialHeight);
+		uCtx.stroke();
+
+		uCtx.fillStyle = "rgb(100, 100, 100)";
+		uCtx.fillText(materialTText, materialTX, materialTY);
+
+
 	}
 }
 
@@ -220,28 +315,44 @@ function CoolDownIndicator(){
 		this.width = player.width;
 		this.height = 5;
 		this.x = (windowWidth / 2) - (this.width / 2);
-		this.y = player.screenY - this.height - 5;
+		this.y = player.screenY - this.height - 10;
+
+		// Outline
+		uCtx.fillStyle = "rgb(150, 150, 150)";
+		uCtx.lineWidth = 1;
+		roundRect(uCtx, this.x - 1, this.y - 1, this.width + 2, this.height + 2, 3, true, false);
 
 		// Make bar proper width
 		this.factor = this.width / player.coolInterval;
 		width = player.coolDown * this.factor;
 
 		// Background
-		uCtx.fillStyle = "rgb(70, 135, 66)";
-		uCtx.fillRect(this.x, this.y, this.width, this.height);
+
+		// Change color if player is holding sword or bow
+		if (player.selection == 1){
+			uCtx.fillStyle = "rgb(140, 60, 0)"
+		}else{
+			uCtx.fillStyle = "rgb(70, 135, 66)";
+		}
+
+		roundRect(uCtx, this.x, this.y, this.width, this.height, 3, true, false);
+
 
 		// Bar
-		uCtx.fillStyle = "rgb(0, 255, 0)"
-		uCtx.fillRect(this.x, this.y, width, this.height);
+		if (player.selection == 1){
+			uCtx.fillStyle = "rgb(255, 156, 28)"
+		}else{
+			uCtx.fillStyle = "rgb(0, 255, 0)";
+		}
 
-		// Outline
-		uCtx.strokeStyle = "black";
-		uCtx.strokeRect(this.x, this.y, this.width, this.height);
-
+		roundRect(uCtx, this.x, this.y, width, this.height, 3, true, false);
 	}
 }
 
 function RespawnScreen(){
+	this.bgColor = "rgb(220, 220, 220)";
+
+	this.respawnButton = new Button();
 	RespawnScreen.prototype.update = function(){
 		// Background ------
 		width = windowWidth * 0.4;
@@ -250,45 +361,163 @@ function RespawnScreen(){
 		x = (windowWidth / 2) - (width / 2);
 		y = (windowHeight / 2) - (height / 2);
 
-		uCtx.fillStyle = "rgb(200, 200, 200)";
-		uCtx.fillRect(x, y, width, height);
+		// ---------- Background
+		uCtx.fillStyle = this.bgColor;
+		uCtx.strokeStyle = "rgb(120, 120, 120)"
+		uCtx.globalAlpha = 0.85;
+		roundRect(uCtx, x, y, width, height, 10, true, true);
+		uCtx.globalAlpha = 1;
 
-		// Outline
-		uCtx.strokeStyle = "black";
-		uCtx.strokeRect(x, y, width, height);
+		// ---------- Label
+		lText = "You Died!";
+		uCtx.fillStyle = "rgb(100, 100, 100)";
+		uCtx.font = "36px Arial";
+		lWidth = uCtx.measureText(lText).width;
+		lX = windowWidth / 2 - lWidth / 2;
+		lY = windowHeight * 0.25;
+		uCtx.fillText(lText, lX, lY);
 
-		// Button ------
+		// ---------- Main Menu
 		bWidth = windowWidth * 0.3;
 		bHeight = 40;
 
 		bX = (windowWidth / 2) - (bWidth / 2);
 		bY = (windowHeight / 2) - (bHeight / 2);
 
-		// Outline
-		uCtx.strokeStyle = "black";
-		uCtx.strokeRect(bX, bY, bWidth, bHeight);
+		// Text
+		uCtx.font = "20px Arial";
+		text = "Main Menu";
 
-		if (ui.mouseX > bX && ui.mouseX < bX + bWidth){
-			if (ui.mouseY > bY && ui.mouseY < bY + bHeight){
-				uCtx.fillStyle = "rgb(180, 180, 180)";
-				uCtx.fillRect(bX, bY, bWidth, bHeight);
-				if (ui.click == true){
-					player.spawn();
+		clicked = this.respawnButton.update(bX, bY, bWidth, bHeight, text, 26, 20);
+
+		if (clicked == true){
+			world.mode = 3;
+		}
+	}
+}
+
+function ScreenButtons(){
+	this.x = 10;
+	this.y = 10;
+
+	this.upgradeButton = new Button();
+	this.createButton = new Button();
+	this.pauseButton = new Button();
+
+	ScreenButtons.prototype.update = function(){
+
+		// ---------- Pause Button
+		pauseX = this.x;
+		pauseY = this.y;
+		pauseWidth = 25;
+		pauseHeight = 25;
+		pauseText = "";
+
+		uCtx.fillStyle = "rgb(220, 220, 220)";
+		uCtx.globalAlpha = 0.85;
+
+		roundRect(uCtx, pauseX, pauseY, pauseWidth, pauseHeight, 10, true);
+		clicked = this.createButton.update(pauseX, pauseY, pauseWidth, pauseHeight, pauseText, 17, 15);
+
+		uCtx.strokeStyle = "rgb(120, 120, 120)";
+
+		uCtx.beginPath();
+		uCtx.moveTo(pauseX + 10, pauseY + 6);
+		uCtx.lineTo(pauseX + 10, pauseY + 18);
+		uCtx.stroke();
+
+		uCtx.beginPath();
+		uCtx.moveTo(pauseX + 15, pauseY + 6);
+		uCtx.lineTo(pauseX + 15, pauseY + 18);
+		uCtx.stroke();
+
+
+		if (clicked == true){
+			if (world.mode == 0 || world.mode == 2){
+				if (ui.pauseScreen == true){
+					pauseScreen.close();
+				}else{
+					pauseScreen.open();
 				}
 			}
 		}
 
-		// Text
-		uCtx.font = "20px Arial";
-		text = "Respawn";
-		tWidth = uCtx.measureText(text).width;
-		tHeight = 16;
+		// ---------- Upgrade Button
+		upgradeX = this.x + pauseWidth + 5;
+		upgradeY = this.y;
+		upgradeWidth = 100;
+		upgradeHeight = 25;
+		upgradeText = "Upgrade";
 
-		tX = (windowWidth / 2) - (tWidth / 2);
-		tY = (windowHeight / 2) - (tHeight / 2) + 14;
+		uCtx.fillStyle = "rgb(220, 220, 220)";
+		uCtx.strokeStyle = "rgb(120, 120, 120)"
+		uCtx.globalAlpha = 0.85;
 
-		uCtx.fillStyle = "rgb(60, 60, 60)";
-		uCtx.fillText(text, tX, tY);
+		roundRect(uCtx, upgradeX, upgradeY, upgradeWidth, upgradeHeight, 10, true);
+		clicked = this.upgradeButton.update(upgradeX, upgradeY, upgradeWidth, upgradeHeight, upgradeText, 17, 15);
+
+		if (clicked == true && world.mode == 0){
+			if (ui.upgradeScreen == true){
+				upgradeScreen.close();
+			}else{
+				createScreen.close();
+				upgradeScreen.open();
+			}
+		}
+
+		// ---------- Create Button
+		createX = this.x + pauseWidth + upgradeWidth + 10;
+		createY = this.y;
+		createWidth = 100;
+		createHeight = 25;
+		createText = "Create";
+
+		uCtx.fillStyle = "rgb(220, 220, 220)";
+		uCtx.globalAlpha = 0.85;
+
+		roundRect(uCtx, createX, createY, createWidth, createHeight, 10, true);
+		clicked = this.createButton.update(createX, createY, createWidth, createHeight, createText, 17, 15);
+
+		if (clicked == true && world.mode == 0){
+			if (ui.createScreen == true){
+				createScreen.close();
+			}else{
+				upgradeScreen.close();
+				createScreen.open();
+			}
+		}
+		
+	}
+}
+
+function WaveIndicator(){
+	this.width = 150;
+	this.height = 30;
+	this.y = 10;
+	this.x;
+	WaveIndicator.prototype.update = function(){
+		this.x = windowWidth - this.width - 15;
+
+		uCtx.fillStyle = "rgb(220, 220, 220)";
+		uCtx.globalAlpha = 0.85;
+		uCtx.strokeStyle = "rgb(120, 120, 120)";
+
+		roundRect(uCtx, this.x, this.y, this.width, this.height, 10, true, true);
+
+		if (world.interval == true){
+			text = "Interval " + Math.round(world.intervalFrames / 60) + "/" + Math.round(world.intervalTime / 60);
+		}else{
+			text = "Wave " + world.wave + ": " + world.entitiesSpawned + "/" + world.entitiesPerWave
+		}
+
+		textWidth = uCtx.measureText(text).width;
+
+		textX = this.x + (this.width / 2) - (textWidth / 2);
+		textY = this.y + 19;
+
+		uCtx.fillStyle = "rgb(100, 100, 100)";
+		uCtx.fillText(text, textX, textY);
+
 	}
 }
 
@@ -299,62 +528,120 @@ function UpgradeScreen(){
 	this.damageButton = new Button();
 	this.reachButton = new Button();
 	this.swordCoolButton = new Button();
+
+	this.bgColor = "rgb(220, 220, 220)";
+
 	UpgradeScreen.prototype.update = function(){
-		// Background ----------
-		width = windowWidth * 0.8;
+		// Background ------
+		width = windowWidth * 0.5;
 		height = windowHeight * 0.8;
 
 		x = (windowWidth / 2) - (width / 2);
 		y = (windowHeight / 2) - (height / 2);
 
-		uCtx.fillStyle = "rgb(200, 200, 200)";
-		uCtx.fillRect(x, y, width, height);
+		// ---------- Background
+		uCtx.fillStyle = this.bgColor;
+		uCtx.strokeStyle = "rgb(120, 120, 120)"
+		uCtx.globalAlpha = 0.85;
+		roundRect(uCtx, x, y, width, height, 10, true, true);
+		uCtx.globalAlpha = 1;
 
-		// Outline
-		uCtx.strokeStyle = "black";
-		uCtx.strokeRect(x, y, width, height);
+		// ----------- Close Button
+		closeX = x + 30;
+		closeY = y + 30;
+		closeWidth = 20;
+		closeHeight = 20;
+		closeRadius = 17;
 
-		// Labels ----------
-		uCtx.font = "30px Arial";
-		uCtx.fillStyle = "black";
+		dist = findDistance(ui.mouseX - (closeX + (closeWidth / 2)), ui.mouseY - (closeY + (closeHeight / 2)))
+		
+		// If button is hovered on and clicked
+		if (dist < closeRadius){
+			uCtx.fillStyle = "rgb(225, 225, 225)";
+			uCtx.beginPath();
+			uCtx.arc(closeX + (closeWidth / 2), closeY + (closeHeight / 2), closeRadius, 0, 2 * Math.PI);
+			uCtx.fill();
+
+			if (ui.click == true){
+				this.close();
+			}
+		}
+
+		uCtx.beginPath();
+		uCtx.moveTo(closeX, closeY);
+		uCtx.lineTo(closeX + closeWidth, closeY + closeHeight);
+		uCtx.stroke();
+
+		uCtx.beginPath();
+		uCtx.moveTo(closeX + closeWidth, closeY);
+		uCtx.lineTo(closeX, closeY + closeHeight);
+		uCtx.stroke();
+
+		if (windowHeight > 660){
+
+			// ---------- Upgrade Label
+			uX = x + 70;
+			uY = y + 49;
+			uText = "Upgrade Weapons";
+			uCtx.font = "25px Arial";
+			uCtx.fillStyle = "rgb(100, 100, 100)";
+
+			uCtx.fillText(uText, uX, uY);
+
+			// ----------- Line
+			lWidth = width - 50;
+			lX = windowWidth / 2 - lWidth / 2;
+			lY = y + 62;
+
+			uCtx.beginPath();
+			uCtx.moveTo(lX, lY);
+			uCtx.lineTo(lX + lWidth, lY);
+			uCtx.stroke();
+		}
+
+		// ----------- Labels
+		uCtx.font = "25px Arial";
+		uCtx.fillStyle = "rgb(100, 100, 100)";
 
 		swordText = "Sword";
 		swordWidth = uCtx.measureText(swordText).width;
-		swordX = (windowWidth * (1 / 3)) - (swordWidth / 2);
-		swordY = y + 100;
+		swordX = (windowWidth * (1 / 2)) - (swordWidth / 2);
+		swordY = windowHeight / 2 - 170;// y + height * (1 / 8); 
 
 		uCtx.fillText(swordText, swordX, swordY);
 
-		uCtx.font = "30px Arial";
-		uCtx.fillStyle = "black";
+		uCtx.font = "25px Arial";
+		uCtx.fillStyle = "rgb(100, 100, 100)";
 
 		bowText = "Bow";
 		bowWidth = uCtx.measureText(bowText).width;
-		bowX = (windowWidth * (2 / 3)) - (bowWidth / 2);
-		bowY = y + 100;
+		bowX = (windowWidth * (1 / 2)) - (bowWidth / 2);
+		bowY = swordY + 230;
 
 		uCtx.fillText(bowText, bowX, bowY);
 
-		// Bow Buttons ----------
+		// ----------- Bow Buttons 
 
 		// Power
 
 		powWidth = windowWidth * 0.2;
 		powHeight = 40;
 
-		powX = (windowWidth * (2 / 3)) - (powWidth / 2);
-		powY = bowY + 70;
+		powX = (windowWidth * (1 / 2)) - (powWidth / 2);
+		powY = bowY + 30;
 
 		// Text
 		powerUpgrade = player.powerUpgrades[player.powerUpgrades.indexOf(player.power) + 1];
 
+		powerXP = player.powerXP[player.powerUpgrades.indexOf(player.power) + 1];
+
 		if (powerUpgrade == undefined){
 			powText = "Power Fully Upgraded!"
 		}else{
-			powText = "Upgrade Power " + player.power + " -> " + powerUpgrade;
+			powText = "Power " + player.power + " -> " + powerUpgrade + ": " + powerXP + " XP";
 		}
 
-		clicked = this.powerButton.update(powX, powY, powWidth, powHeight, powText, 25, 20);
+		clicked = this.powerButton.update(powX, powY, powWidth, powHeight, powText, 26, 20, true);
 
 		if (clicked == true){
 			player.upgrade("power");
@@ -365,19 +652,21 @@ function UpgradeScreen(){
 		bowCoolWidth = windowWidth * 0.2;
 		bowCoolHeight = 40;
 
-		bowCoolX = (windowWidth * (2 / 3)) - (powWidth / 2);
-		bowCoolY = bowY + 120;
+		bowCoolX = (windowWidth * (1 / 2)) - (powWidth / 2);
+		bowCoolY = bowY + 80;
 
 		// Text
 		bowCoolUpgrade = player.bowCoolUpgrades[player.bowCoolUpgrades.indexOf(player.bowCool) + 1];
 
+		bowCoolXP = player.bowCoolXP[player.bowCoolUpgrades.indexOf(player.bowCool) + 1];
+
 		if (bowCoolUpgrade == undefined){
-			bowCoolText = "Bow Cooldown Fully Upgraded!"
+			bowCoolText = "Cooldown Fully Upgraded!"
 		}else{
-			bowCoolText = "Upgrade Bow Cooldown " + player.bowCool + " -> " + bowCoolUpgrade;
+			bowCoolText = "Cooldown " + player.bowCool + " -> " + bowCoolUpgrade + ": " + bowCoolXP + " XP";
 		}
 
-		clicked = this.bowCoolButton.update(bowCoolX, bowCoolY, bowCoolWidth, bowCoolHeight, bowCoolText, 25, 20);
+		clicked = this.bowCoolButton.update(bowCoolX, bowCoolY, bowCoolWidth, bowCoolHeight, bowCoolText, 26, 20, true);
 
 		if (clicked == true){
 			player.upgrade("bowCool");
@@ -388,19 +677,21 @@ function UpgradeScreen(){
 		damageWidth = windowWidth * 0.2;
 		damageHeight = 40;
 
-		damageX = (windowWidth * (1 / 3)) - (damageWidth / 2);
-		damageY = bowY + 70;
+		damageX = (windowWidth * (1 / 2)) - (damageWidth / 2);
+		damageY = swordY + 30;
 
 		// Text
 		damageUpgrade = player.damageUpgrades[player.damageUpgrades.indexOf(player.damage) + 1];
 
+		damageXP = player.damageXP[player.damageUpgrades.indexOf(player.damage) + 1];
+
 		if (damageUpgrade == undefined){
 			damageText = "Damage Fully Upgraded!"
 		}else{
-			damageText = "Upgrade Damage " + player.damage + " -> " + damageUpgrade;
+			damageText = "Damage " + player.damage + " -> " + damageUpgrade + ": " + damageXP + " XP";
 		}
 
-		clicked = this.damageButton.update(damageX, damageY, damageWidth, damageHeight, damageText, 25, 20);
+		clicked = this.damageButton.update(damageX, damageY, damageWidth, damageHeight, damageText, 26, 20, true);
 
 		if (clicked == true){
 			player.upgrade("damage");
@@ -411,19 +702,21 @@ function UpgradeScreen(){
 		reachWidth = windowWidth * 0.2;
 		reachHeight = 40;
 
-		reachX = (windowWidth * (1 / 3)) - (reachWidth / 2);
-		reachY = bowY + 120;
+		reachX = (windowWidth * (1 / 2)) - (reachWidth / 2);
+		reachY = swordY + 80;
 
 		// Text
 		reachUpgrade = player.reachUpgrades[player.reachUpgrades.indexOf(player.reach) + 1];
 
+		reachXP = player.reachXP[player.reachUpgrades.indexOf(player.reach) + 1];
+
 		if (reachUpgrade == undefined){
 			reachText = "Reach Fully Upgraded!"
 		}else{
-			reachText = "Upgrade Reach " + player.reach + " -> " + reachUpgrade;
+			reachText = "Reach " + player.reach + " -> " + reachUpgrade + ": " + reachXP + " XP";
 		}
 
-		clicked = this.reachButton.update(reachX, reachY, reachWidth, reachHeight, reachText, 25, 20);
+		clicked = this.reachButton.update(reachX, reachY, reachWidth, reachHeight, reachText, 26, 20, true);
 
 		if (clicked == true){
 			player.upgrade("reach");
@@ -434,19 +727,21 @@ function UpgradeScreen(){
 		swordCoolWidth = windowWidth * 0.2;
 		swordCoolHeight = 40;
 
-		swordCoolX = (windowWidth * (1 / 3)) - (swordCoolWidth / 2);
-		swordCoolY = bowY + 170;
+		swordCoolX = (windowWidth * (1 / 2)) - (swordCoolWidth / 2);
+		swordCoolY = swordY + 130;
 
 		// Text
 		swordCoolUpgrade = player.swordCoolUpgrades[player.swordCoolUpgrades.indexOf(player.swordCool) + 1];
 
+		swordCoolXP = player.swordCoolXP[player.swordCoolUpgrades.indexOf(player.swordCool) + 1];
+
 		if (swordCoolUpgrade == undefined){
-			swordCoolText = "Sword Cooldown Fully Upgraded!"
+			swordCoolText = "Cooldown Fully Upgraded!"
 		}else{
-			swordCoolText = "Upgrade Sword Cooldown " + player.swordCool + " -> " + swordCoolUpgrade;
+			swordCoolText = "Cooldown " + player.swordCool + " -> " + swordCoolUpgrade + ": " + swordCoolXP + " XP";
 		}
 
-		clicked = this.swordCoolButton.update(swordCoolX, swordCoolY, swordCoolWidth, swordCoolHeight, swordCoolText, 25, 20);
+		clicked = this.swordCoolButton.update(swordCoolX, swordCoolY, swordCoolWidth, swordCoolHeight, swordCoolText, 26, 20, true);
 
 		if (clicked == true){
 			player.upgrade("swordCool");
@@ -455,6 +750,8 @@ function UpgradeScreen(){
 	}
 
 	UpgradeScreen.prototype.open = function(){
+		pauseScreen.close();
+		createScreen.close();
 		ui.upgradeScreen = true;
 	}
 
@@ -467,20 +764,75 @@ function CreateScreen(){
 	this.arrowButton = new Button();
 	this.bombButton = new Button();
 	this.bandageButton = new Button();
+
+	this.bgColor = "rgb(220, 220, 220)";
 	CreateScreen.prototype.update = function(){
-		// Background ----------
-		width = windowWidth * 0.8;
+		// Background ------
+		width = windowWidth * 0.5;
 		height = windowHeight * 0.8;
 
 		x = (windowWidth / 2) - (width / 2);
 		y = (windowHeight / 2) - (height / 2);
 
-		uCtx.fillStyle = "rgb(200, 200, 200)";
-		uCtx.fillRect(x, y, width, height);
+		// ---------- Background
+		uCtx.fillStyle = this.bgColor;
+		uCtx.strokeStyle = "rgb(120, 120, 120)"
+		uCtx.globalAlpha = 0.85;
+		roundRect(uCtx, x, y, width, height, 10, true, true);
+		uCtx.globalAlpha = 1;
 
-		// Outline
-		uCtx.strokeStyle = "black";
-		uCtx.strokeRect(x, y, width, height);
+		// ----------- Close Button
+		closeX = x + 30;
+		closeY = y + 30;
+		closeWidth = 20;
+		closeHeight = 20;
+		closeRadius = 17;
+
+		dist = findDistance(ui.mouseX - (closeX + (closeWidth / 2)), ui.mouseY - (closeY + (closeHeight / 2)))
+		
+		// If button is hovered on and clicked
+		if (dist < closeRadius){
+			uCtx.fillStyle = "rgb(225, 225, 225)";
+			uCtx.beginPath();
+			uCtx.arc(closeX + (closeWidth / 2), closeY + (closeHeight / 2), closeRadius, 0, 2 * Math.PI);
+			uCtx.fill();
+
+			if (ui.click == true){
+				this.close();
+			}
+		}
+
+		uCtx.beginPath();
+		uCtx.moveTo(closeX, closeY);
+		uCtx.lineTo(closeX + closeWidth, closeY + closeHeight);
+		uCtx.stroke();
+
+		uCtx.beginPath();
+		uCtx.moveTo(closeX + closeWidth, closeY);
+		uCtx.lineTo(closeX, closeY + closeHeight);
+		uCtx.stroke();
+
+		if (windowHeight > 660){
+
+			// ---------- Upgrade Label
+			uX = x + 70;
+			uY = y + 49;
+			uText = "Create Items";
+			uCtx.font = "25px Arial";
+			uCtx.fillStyle = "rgb(100, 100, 100)";
+
+			uCtx.fillText(uText, uX, uY);
+
+			// ----------- Line
+			lWidth = width - 50;
+			lX = windowWidth / 2 - lWidth / 2;
+			lY = y + 62;
+
+			uCtx.beginPath();
+			uCtx.moveTo(lX, lY);
+			uCtx.lineTo(lX + lWidth, lY);
+			uCtx.stroke();
+		}
 
 		// Arrow Button
 		arrowBWidth = width / 2;
@@ -488,7 +840,7 @@ function CreateScreen(){
 		arrowBX = (windowWidth / 2) - (arrowBWidth / 2);
 		arrowBY = (windowHeight / 2) - (arrowBHeight / 2);
 
-		clicked = this.arrowButton.update(arrowBX, arrowBY, arrowBWidth, arrowBHeight, "Make 10 Arrows: " + player.arrowCost * 10 + " Material", 25, 20);
+		clicked = this.arrowButton.update(arrowBX, arrowBY, arrowBWidth, arrowBHeight, "Make 10 Arrows: " + player.arrowCost * 10 + " Material", 25, 20, true);
 
 		if (clicked == true){
 			player.addItem("arrow", 10);
@@ -500,7 +852,7 @@ function CreateScreen(){
 		bombBX = (windowWidth / 2) - (bombBWidth / 2);
 		bombBY = arrowBY - 50;
 
-		clicked = this.bombButton.update(bombBX, bombBY, bombBWidth, bombBHeight, "Make Bomb: " + player.bombCost + " Material", 25, 20);
+		clicked = this.bombButton.update(bombBX, bombBY, bombBWidth, bombBHeight, "Make Bomb: " + player.bombCost + " Material", 25, 20, true);
 
 		if (clicked == true){
 			player.addItem("bomb", 1);
@@ -512,7 +864,7 @@ function CreateScreen(){
 		bandageBX = (windowWidth / 2) - (bandageBWidth / 2);
 		bandageBY = arrowBY + 50;
 
-		clicked = this.bandageButton.update(bandageBX, bandageBY, bandageBWidth, bandageBHeight, "Make Bandage: " + player.bandageCost + " Material", 25, 20);
+		clicked = this.bandageButton.update(bandageBX, bandageBY, bandageBWidth, bandageBHeight, "Make Bandage: " + player.bandageCost + " Material", 25, 20, true);
 
 		if (clicked == true){
 			player.addItem("bandage", 1);
@@ -520,6 +872,8 @@ function CreateScreen(){
 	}
 
 	CreateScreen.prototype.open = function(){
+		pauseScreen.close();
+		upgradeScreen.close();
 		ui.createScreen = true;
 	}
 
@@ -528,82 +882,340 @@ function CreateScreen(){
 	}
 }
 
-function Inventory(){
-	this.x = 230;
-	this.y = 32;
-	this.font = 20;
-	this.spacing = 10;
+function PauseScreen(){
+	this.mainMenuButton = new Button();
+	this.tutorialButton = new Button();
+	this.bgColor = "rgb(220, 220, 220)";
 
-	Inventory.prototype.update = function(){
-		// Collector
-		uCtx.font = this.font + "px Arial";
-		uCtx.fillStyle = "black";
+	this.dragging = false;
+	PauseScreen.prototype.update = function(){
+		// Background ------
+		width = windowWidth * 0.5;
+		height = windowHeight * 0.8;
 
-		// 1st item
-		firstText = "Collector";
-		firstWidth = uCtx.measureText(firstText).width;
-		firstX = this.x;
-		uCtx.fillText(firstText, firstX, this.y);
+		x = (windowWidth / 2) - (width / 2);
+		y = (windowHeight / 2) - (height / 2);
 
-		// Box
-		if (player.selection == 0){
-			uCtx.strokeRect(firstX - 2, this.y - this.font + 2, firstWidth + 4, this.font);
+		// ---------- Background
+		uCtx.fillStyle = this.bgColor;
+		uCtx.strokeStyle = "rgb(120, 120, 120)"
+		uCtx.globalAlpha = 0.85;
+		roundRect(uCtx, x, y, width, height, 10, true, true);
+		uCtx.globalAlpha = 1;
+
+		// ----------- Close Button
+		closeX = x + 30;
+		closeY = y + 30;
+		closeWidth = 20;
+		closeHeight = 20;
+		closeRadius = 17;
+
+		dist = findDistance(ui.mouseX - (closeX + (closeWidth / 2)), ui.mouseY - (closeY + (closeHeight / 2)))
+		
+		// If button is hovered on and clicked
+		if (dist < closeRadius){
+			uCtx.fillStyle = "rgb(225, 225, 225)";
+			uCtx.beginPath();
+			uCtx.arc(closeX + (closeWidth / 2), closeY + (closeHeight / 2), closeRadius, 0, 2 * Math.PI);
+			uCtx.fill();
+
+			if (ui.click == true){
+				this.close();
+			}
 		}
 
-		// 2nd Item
-		secondText = "Sword";
-		secondWidth = uCtx.measureText(secondText).width;
-		secondX = firstX + firstWidth + this.spacing;
-		uCtx.fillText(secondText, secondX, this.y);
+		uCtx.beginPath();
+		uCtx.moveTo(closeX, closeY);
+		uCtx.lineTo(closeX + closeWidth, closeY + closeHeight);
+		uCtx.stroke();
 
-		// Box
-		if (player.selection == 1){
-			uCtx.strokeRect(secondX - 2, this.y - this.font + 2, secondWidth + 4, this.font);
+		uCtx.beginPath();
+		uCtx.moveTo(closeX + closeWidth, closeY);
+		uCtx.lineTo(closeX, closeY + closeHeight);
+		uCtx.stroke();
+
+		// ---------- Main Menu Button
+		mainBY = y + height - 80;
+		mainBText = "Exit to Main Menu";
+		mainBWidth = 200;
+		mainBHeight = 40;
+
+		clicked = this.mainMenuButton.update(0, mainBY, mainBWidth, mainBHeight, mainBText, 25, 20, true);
+
+		if (clicked == true){
+			world.mode = 3;
 		}
 
-		// 3rd Item
-		thirdText = "Bow: " + player.arrows;
-		thirdWidth = uCtx.measureText(thirdText).width;
-		thirdX = secondX + secondWidth + this.spacing;
-		uCtx.fillText(thirdText, thirdX, this.y);
+		if (windowHeight > 660){
 
-		// Box
-		if (player.selection == 2){
-			uCtx.strokeRect(thirdX - 2, this.y - this.font + 2, thirdWidth + 4, this.font);
+			// ---------- Label
+			uX = x + 70;
+			uY = y + 49;
+			uText = "Game Paused";
+			uCtx.font = "25px Arial";
+			uCtx.fillStyle = "rgb(100, 100, 100)";
+
+			uCtx.fillText(uText, uX, uY);
+
+			// ----------- Line
+			lWidth = width - 50;
+			lX = windowWidth / 2 - lWidth / 2;
+			lY = y + 62;
+
+			uCtx.beginPath();
+			uCtx.moveTo(lX, lY);
+			uCtx.lineTo(lX + lWidth, lY);
+			uCtx.stroke();
 		}
 
-		// 4th Item
-		fourthText = "Bombs: " + player.bombs;
-		fourthWidth = uCtx.measureText(fourthText).width;
-		fourthX = thirdX + thirdWidth + this.spacing;
-		uCtx.fillText(fourthText, fourthX, this.y);
+		// ---------- Tutorial Button
+		tutY = mainBY - 50;
+		tutText = "Tutorial";
+		tutWidth = 200;
+		tutHeight = 40;
 
-		// Box
-		if (player.selection == 3){
-			uCtx.strokeRect(fourthX - 2, this.y - this.font + 2, fourthWidth + 4, this.font);
+		clicked = this.tutorialButton.update(0, tutY, tutWidth, tutHeight, tutText, 25, 20, true);
+
+		if (clicked == true){
+			tutorial.screen = 0;
+			tutorial.present = true;
 		}
 
-		// 5th Item
-		fifthText = "Bandages: " + player.bandages;
-		fifthWidth = uCtx.measureText(fifthText).width;
-		fifthX = fourthX + fourthWidth + this.spacing;
-		uCtx.fillText(fifthText, fifthX, this.y);
+		if (windowHeight > 660){
 
-		// Box
-		if (player.selection == 4){
-			uCtx.strokeRect(fifthX - 2, this.y - this.font + 2, fifthWidth + 4, this.font);
+			// ---------- Label
+			uX = x + 70;
+			uY = y + 49;
+			uText = "Game Paused";
+			uCtx.font = "25px Arial";
+			uCtx.fillStyle = "rgb(100, 100, 100)";
+
+			uCtx.fillText(uText, uX, uY);
+
+			// ----------- Line
+			lWidth = width - 50;
+			lX = windowWidth / 2 - lWidth / 2;
+			lY = y + 62;
+
+			uCtx.beginPath();
+			uCtx.moveTo(lX, lY);
+			uCtx.lineTo(lX + lWidth, lY);
+			uCtx.stroke();
 		}
 
-		// 6th Item
-		sixthText = "Saplings: " + player.saplings;
-		sixthWidth = uCtx.measureText(sixthText).width;
-		sixthX = fifthX + fifthWidth + this.spacing;
-		uCtx.fillText(sixthText, sixthX, this.y);
+		// ---------- Block Size Slider
 
-		// Box
-		if (player.selection == 5){
-			uCtx.strokeRect(sixthX - 2, this.y - this.font + 2, sixthWidth + 4, this.font);
+		// Line
+
+		sWidth = width * 0.75;
+		sX = (windowWidth / 2) - (sWidth / 2);
+		sY = windowHeight * 0.50;
+
+		uCtx.beginPath();
+		uCtx.moveTo(sX, sY);
+		uCtx.lineTo(sX + sWidth, sY);
+		uCtx.stroke();
+
+		// Label
+		uCtx.font = "25px Arial";
+		lText = "Block Size";
+		lWidth = uCtx.measureText(lText).width;
+		lX = (windowWidth / 2) - (lWidth / 2);
+		lY = sY - 30;
+
+		uCtx.font = "25px Arial";
+		uCtx.fillStyle = "rgb(100, 100, 100)";
+		uCtx.fillText(lText, lX, lY);
+
+		range = 60 - 20;
+
+		factor = sWidth / range;
+
+		bX = sX + ((world.blockSize - 20) * factor);
+		bY = sY;
+		bRadius = 8;
+
+		uCtx.globalAlpha = 0.97;
+		uCtx.fillStyle = "rgb(220, 220, 220)";
+		uCtx.beginPath();
+		uCtx.arc(bX, bY, bRadius, 0, 2 * Math.PI);
+		uCtx.stroke();
+		uCtx.fill();
+		uCtx.globalAlpha = 1;
+
+		dist = findDistance(ui.mouseX - (bX), ui.mouseY - (bY));
+		
+		// If button is hovered on and clicked
+		if (dist < bRadius){
+			uCtx.fillStyle = "rgb(225, 225, 225)";
+			uCtx.beginPath();
+			uCtx.arc(bX, bY, bRadius, 0, 2 * Math.PI);
+			uCtx.fill();
+
+			if (ui.mousePressed){
+				this.dragging = true;
+			}
+		}
+
+		if (ui.mousePressed == false){
+			this.dragging = false;
+		}
+
+		if (this.dragging == true){
+			if (ui.mouseX < sX){
+				bX = sX;
+			}else if (ui.mouseX > sX + sWidth){
+				bX = sX + sWidth;
+			}else{
+				bX = ui.mouseX;
+			}
+
+			blockSize = Math.round((bX - sX) / factor + 20);
+
+			world.changeBlockSize(blockSize);
 		}
 		
+
+	}
+	PauseScreen.prototype.open = function(){
+		world.mode = 2;
+
+		createScreen.close();
+		upgradeScreen.close();
+		ui.pauseScreen = true;
+	}
+
+	PauseScreen.prototype.close = function(){
+		world.mode = 0;
+
+		ui.pauseScreen = false;
+	}
+}
+
+function Inventory(){
+	this.x = 10;
+	this.y = 45;
+	this.width = 150;
+	this.height = 200;
+
+	this.bgColor = "rgb(220, 220, 220)";
+
+	this.axeImg = new Image();
+	this.axeImg.src = "inventory/axe.png";
+
+	this.swordImg = new Image();
+	this.swordImg.src = "inventory/sword.png";
+
+	this.bowImg = new Image();
+	this.bowImg.src = "inventory/bow.png";
+
+	this.bombImg = new Image();
+	this.bombImg.src = "inventory/bomb.png";
+
+	this.bandageImg = new Image();
+	this.bandageImg.src = "inventory/bandage.png";
+
+	Inventory.prototype.update = function(){
+		// ---------- Background
+		uCtx.fillStyle = this.bgColor;
+		uCtx.strokeStyle = "rgb(120, 120, 120)"
+		uCtx.globalAlpha = 0.75;
+		roundRect(uCtx, this.x, this.y, this.width, this.height, 10, true, true);
+		uCtx.globalAlpha = 1;
+
+		// ---------- Side Numbers
+		uCtx.font = "10px Arial";
+		uCtx.fillStyle = "rgb(100, 100, 100)"
+		for (var x = 1; x < 7; x++){
+			uCtx.fillText(x, this.x + 11, (this.y - 2) + 30 * x);
+		}
+
+		// ---------- Selection Indicator
+		indX = this.x + 25;
+		indY = Math.floor(this.y + 10 + (player.selection * 30.5));
+		indWidth = this.width - 30;
+		indHeight = 25;
+
+		uCtx.fillStyle = this.bgColor;
+		uCtx.globalAlpha = 0.85;
+		uCtx.lineWidth = 1;
+		uCtx.strokeStyle = "rgb(100, 100, 100)";
+		roundRect(uCtx, indX, indY, indWidth, indHeight, 10, false, true);
+		uCtx.globalAlpha = 1;
+
+		// ---------- Axe
+		axeX = this.x + 63;
+		axeY = this.y + 8;
+		uCtx.drawImage(this.axeImg, axeX, axeY);
+
+		// ---------- Sword
+		swordX = this.x + 64;
+		swordY = this.y + 38;
+		uCtx.drawImage(this.swordImg, swordX, swordY);
+
+		// ---------- Bow
+		bowX = this.x + 64;
+		bowY = this.y + 67;
+		uCtx.drawImage(this.bowImg, bowX, bowY);
+
+		uCtx.fillStyle = "rgb(100, 100, 100)";
+		uCtx.font = "16px Arial";
+
+		bowTX = this.x + 93;
+		bowTY = this.y + 90;
+		bowText = player.arrows;
+
+		uCtx.fillText(bowText, bowTX, bowTY);
+
+		// ---------- Bomb
+		bombX = this.x + 62;
+		bombY = this.y + 99;
+		uCtx.drawImage(this.bombImg, bombX, bombY);
+
+		uCtx.fillStyle = "rgb(100, 100, 100)";
+		uCtx.font = "16px Arial";
+
+		bombTX = this.x + 93;
+		bombTY = this.y + 120;
+		bombText = player.bombs;
+
+		uCtx.fillText(bombText, bombTX, bombTY);
+
+		// ---------- Bandage
+		bandageX = this.x + 62;
+		bandageY = this.y + 128;
+		uCtx.drawImage(this.bandageImg, bandageX, bandageY);
+
+		uCtx.fillStyle = "rgb(100, 100, 100)";
+		uCtx.font = "16px Arial";
+
+		bandageTX = this.x + 93;
+		bandageTY = this.y + 150;
+		bandageText = player.bandages;
+
+		uCtx.fillText(bandageText, bandageTX, bandageTY);
+
+		// ---------- Sapling
+		saplingX = this.x + 71;
+		saplingY = this.y + 175;
+
+		// Fill and stroke
+		uCtx.beginPath();
+  		uCtx.arc(saplingX, saplingY, 5, 0, 2 * Math.PI, false);
+  		uCtx.fillStyle = 'rgb(30, 155, 20)';
+  		uCtx.fill();
+
+  		uCtx.lineWidth = 2;
+  		uCtx.strokeStyle = 'rgb(3, 130, 0)';
+  		uCtx.stroke();
+
+		uCtx.fillStyle = "rgb(100, 100, 100)";
+		uCtx.font = "16px Arial";
+
+		saplingTX = this.x + 93;
+		saplingTY = this.y + 180;
+		saplingText = player.saplings;
+
+		uCtx.fillText(saplingText, saplingTX, saplingTY);
 	}
 }
