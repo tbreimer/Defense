@@ -1,6 +1,6 @@
 function World() {
-	// 0: In game 1: Dead 2: Paused
-	this.mode = 0;
+	// 0: In game 1: Dead 2: Paused 3: Title Screen
+	this.mode = 3;
 
 	this.worldWidth = 50;
 	this.worldHeight = 50;
@@ -93,9 +93,10 @@ function World() {
 	this.entityDamage = 0.5;
 	this.entityScore = 20;
 
+	this.blocks = [];
+
 	World.prototype.update = function(){
 		pCtx.clearRect(0, 0, windowWidth, windowHeight);
-		uCtx.clearRect(0, 0, windowWidth, windowHeight);
 
 		// Only spawn entities if player is alive
 		if (world.mode == 0){
@@ -137,6 +138,7 @@ function World() {
 
 		// Water background
  		bCtx.fillStyle = "rgb(30, 115, 255)";
+ 		bCtx.fillStyle = "rgb(9, 133, 234)";
  		bCtx.fillRect(0, 0, windowWidth, windowHeight);
 
  		// Gets coordinates of the top left of the canvas
@@ -159,6 +161,8 @@ function World() {
  		blockWidth = Math.ceil(windowWidth / this.blockSize) + 1;
  		blockHeight = Math.ceil(windowHeight / this.blockSize) + 1;
 
+ 		bCtx.lineWidth = 1;
+
  		// Loop through all the blocks that need to be drawn
  		for (var x = 0; x < blockWidth; x++){
  			for (var y = 0; y < blockHeight; y++){
@@ -180,13 +184,16 @@ function World() {
 	 						this.drawAddition(this.blockData[topBlockX + x][topBlockY + y], blockX, blockY, this.blockAttributes[topBlockX + x][topBlockY + y], topBlockX + x, topBlockY + y);
 	 					}else{
 	 						// Draw block
-			 				bCtx.fillStyle = "rgb(" + colorData.r + "," + colorData.g + "," + colorData.b + ")";
-			 				bCtx.fillRect(blockX, blockY, this.blockSize, this.blockSize);
 
-			 				// Stroke block
-			 				bCtx.lineWidth = 2;
-			 				bCtx.fillStyle = "black";
-			 				bCtx.strokeRect(blockX, blockY, this.blockSize, this.blockSize);
+			 				fillData = this.getBlockFill(this.blockData[topBlockX + x][topBlockY + y]);
+
+			 				bCtx.fillStyle = "rgb(" + fillData.r + "," + fillData.g + "," + fillData.b + ")";
+			 				bCtx.fillRect(blockX, blockY, world.blockSize, world.blockSize);
+
+			 				strokeData = this.getBlockStroke(this.blockData[topBlockX + x][topBlockY + y]);
+
+			 				bCtx.strokeStyle = "rgb(" + strokeData.r + "," + strokeData.g + "," + strokeData.b + ")";
+			 				bCtx.strokeRect(blockX, blockY, world.blockSize, world.blockSize);
 	 					}
 		 			}
  				}
@@ -200,14 +207,15 @@ function World() {
 		// blockX and blockY are where the addition needs to be draw, x and y are the block's coords in the array
 
 		// Draw grass block behind addition
-		colorData = this.getBlockTexture("grass");
-		bCtx.fillStyle = "rgb(" + colorData.r + "," + colorData.g + "," + colorData.b + ")";
-		bCtx.fillRect(blockX, blockY, this.blockSize, this.blockSize);
+		fillData = this.getBlockFill("grass");
 
-		// Stroke block
-		bCtx.lineWidth = 2;
-		bCtx.fillStyle = "black";
-		bCtx.strokeRect(blockX, blockY, this.blockSize, this.blockSize);
+		bCtx.fillStyle = "rgb(" + fillData.r + "," + fillData.g + "," + fillData.b + ")";
+		bCtx.fillRect(blockX, blockY, world.blockSize, world.blockSize);
+
+		strokeData = this.getBlockStroke("grass");
+
+		bCtx.strokeStyle = "rgb(" + strokeData.r + "," + strokeData.g + "," + strokeData.b + ")";
+		bCtx.strokeRect(blockX, blockY, world.blockSize, world.blockSize);
 
 		if (addition == "bush"){
 			// In the world.blockAttributes array, each bush has a value from 0 - 100 
@@ -222,13 +230,14 @@ function World() {
 			radius = Math.floor(factor * attributes);
 
       		// Fill and stroke
-			aCtx.beginPath();
-      		aCtx.arc(centerX, centerY, radius, 0, 2 * Math.PI, false);
-      		aCtx.fillStyle = 'green';
-      		aCtx.fill();
-      		aCtx.lineWidth = 2;
-      		aCtx.strokeStyle = 'black';
-      		aCtx.stroke();
+			bCtx.beginPath();
+      		bCtx.arc(centerX, centerY, radius, 0, 2 * Math.PI, false);
+      		bCtx.fillStyle = 'rgb(30, 155, 20)';
+      		bCtx.fill();
+
+      		bCtx.lineWidth = 2;
+      		bCtx.strokeStyle = 'rgb(3, 130, 0)';
+      		bCtx.stroke();
 
 		}else if (addition == "rock"){
 
@@ -239,11 +248,13 @@ function World() {
       		// Fill and stroke
 			bCtx.beginPath();
       		bCtx.arc(centerX, centerY, radius, 0, 2 * Math.PI, false);
-      		bCtx.fillStyle = 'gray';
+      		bCtx.fillStyle = 'rgb(160, 160, 160)';
       		bCtx.fill();
+
       		bCtx.lineWidth = 2;
-      		bCtx.strokeStyle = 'black';
+      		bCtx.strokeStyle = 'rgb(130, 130, 130)';
       		bCtx.stroke();
+
 		}
 	}
 
@@ -252,7 +263,7 @@ function World() {
 	World.prototype.create = function(){
 		// Erase current world
 		wCtx.fillStyle = "white";
-		wCtx.fillRect(0, 0, this.worldWidth, this.worldHeight);
+		wCtx.fillRect(0, 0, 500, 500);
 
 		// Sand background
 
@@ -328,6 +339,9 @@ function World() {
 	}
 
 	World.prototype.transcribe = function(){
+		world.blockData = [];
+		world.blockAttributes = [];
+
 		// Transcibes pixels that makeup world onto an array
 		for (var x = 0; x < this.worldWidth; x++){
 
@@ -375,7 +389,7 @@ function World() {
 
 	 				// If bush is less then maximum size, grow it
 	 				if (blockAttribute[3] > this.blockAttributes[x][y]){
-	 					this.blockAttributes[x][y] += 0.15;
+	 					this.blockAttributes[x][y] += 0.3;
 	 				}
 	 			}
 
@@ -439,7 +453,7 @@ function World() {
 				}else if (random > this.archerSpawn + this.tankSpawn && random < this.archerSpawn + this.tankSpawn + this.speedSpawn){
 					this.entities.push(new Entity(x, y, this.speedHealth, this.speedSpeed, this.speedDamage, this.speedScore, "rgb(25, 255, 25)", this.entities.length));
 				}else{
-					this.entities.push(new Entity(x, y, this.entityHealth, this.entitySpeed, this.entityDamage, this.entityScore, "red", this.entities.length));
+					this.entities.push(new Entity(x, y, this.entityHealth, this.entitySpeed, this.entityDamage, this.entityScore, "rgb(255, 0, 0)", this.entities.length));
 				}
 				
 				this.entitiesSpawned += 1;
@@ -484,6 +498,54 @@ function World() {
 
 		// Increases difficulty over time
 		this.difficulty += this.difficultyIncrease;
+	}
+
+	World.prototype.changeBlockSize = function(size){
+		pCtx.clearRect(0, 0, windowWidth, windowHeight);
+		ratio = size / this.blockSize;
+
+		// Change player attributes
+		player.width = Math.round(world.blockSize * 0.75);
+		player.height = Math.round(world.blockSize * 0.75);
+
+		player.x = Math.round(player.x * ratio);
+		player.y = Math.round(player.y * ratio);
+
+		// Updates all entities
+ 		for (var x = 0; x < this.entities.length; x++){
+ 			// Only update if entity is alive
+ 			if (this.entities[x].alive == true){
+ 				this.entities[x].x = Math.round(this.entities[x].x * ratio);
+ 				this.entities[x].y = Math.round(this.entities[x].y * ratio);
+
+ 				this.entities[x].width = Math.round(world.blockSize * 0.75);
+ 				this.entities[x].height = Math.round(world.blockSize * 0.75);
+
+ 				this.entities[x].render();
+ 			}
+ 		}
+
+ 		// Updates all arrows
+ 		for (var x = 0; x < this.arrows.length; x++){
+ 			this.arrows[x].x = Math.round(this.arrows[x].x * ratio);
+ 			this.arrows[x].y = Math.round(this.arrows[x].y * ratio);
+
+ 			this.arrows[x].render();
+ 		}
+
+ 		// Updates all bombs
+ 		for (var x = 0; x < this.bombs.length; x++){
+ 			this.bombs[x].x = Math.round(this.bombs[x].x * ratio);
+ 			this.bombs[x].y = Math.round(this.bombs[x].y * ratio);
+
+ 			this.bombs[x].render();
+ 		}
+
+		world.blockSize = size;
+
+		world.render();
+		player.render();
+
 	}
 
 	World.prototype.collectMaterial = function(x, y){
@@ -595,14 +657,37 @@ function World() {
 
 		for (var x = 0; x < blockName.length; x++){
 			if (block == blockName[x]){
+				return blockTextures[x];
+			}
+		}
+	}
+	World.prototype.getBlockFill = function(block){
+		for (var x = 0; x < blockName.length; x++){
+			if (block == blockName[x]){
 				// Determine if block needs special drawing instructions or is just a color
-				if (Array.isArray(blockTextures[x]) == false){
-					return blockTextures[x];
+				if (Array.isArray(blockFill[x]) == false){
+					return undefined;
 				}else{
 					return{
-						r: blockTextures[x][0],
-						g: blockTextures[x][1],
-						b: blockTextures[x][2]
+						r: blockFill[x][0],
+						g: blockFill[x][1],
+						b: blockFill[x][2]
+					}  
+				}
+			}
+		}
+	}
+	World.prototype.getBlockStroke = function(block){
+		for (var x = 0; x < blockName.length; x++){
+			if (block == blockName[x]){
+				// Determine if block needs special drawing instructions or is just a color
+				if (Array.isArray(blockStroke[x]) == false){
+					return undefined;
+				}else{
+					return{
+						r: blockStroke[x][0],
+						g: blockStroke[x][1],
+						b: blockStroke[x][2]
 					}  
 				}
 			}
