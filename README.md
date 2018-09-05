@@ -1,5 +1,6 @@
 # Defense
-This repository tracks the development of a game which will be released in early September.
+This is a web game which I made over the summer of 2018. Working example can be found at
+http://forestquest.net/defense/game.html
 
 ### v1.0
 * Name
