@@ -55,13 +55,13 @@ var title = new Title();
 // Database of blocks
 
 // Name
-var blockName = ["water", "grass", "sand", "bush", "rock"];
+var blockName = ["water", "grass", "sand", "bush", "rock", "fence", "wall"];
 
 // Whether they have collision
-var blockCollision = [true, false, false, false, true];
+var blockCollision = [true, false, false, false, true, true, true];
 
 // Whether blocks have collision for entities
-var blockCollisionEntities = [false, false, false, false, true];
+var blockCollisionEntities = [false, false, false, false, true, true, true];
 
 // Color on map
 var blockColor = [
@@ -69,7 +69,9 @@ var blockColor = [
 	[0, 255, 0], // grass
 	[255, 255, 0], // sand
 	[30, 100, 20], // bush
-	[200, 200, 200] // rock
+	[200, 200, 200], // rock
+	[222, 184, 135], // fence
+	[210, 180, 140] // wall
 ];
 
 // Color in world, addition indicates special drawing instructions
@@ -78,7 +80,9 @@ var blockTextures = [
 	"block", // grass
 	"block", // sand
 	"addition", // bush
-	"addition" // rock
+	"addition", // rock
+	"addition", // fence
+	"addition" // wall
 ];
 
 var blockFill = [
@@ -95,7 +99,13 @@ var blockStroke = [
 
 // What number the block should have when it is created on the world.blockAttributes array
 // Attribute refers to the number a block is assigned when it is created, attributes refers to the current number of a certain block
-var blockAttribute = [0, 0, 0, 100, 0];
+var blockAttribute = [0, 0, 0, 100, 0, 600, 2000];
+
+var devMode = false;
+
+var ps = 0;
+var ls = 0;
+var ms = 0;
 
 window.addEventListener('resize', resize);
 
@@ -143,7 +153,6 @@ function everySecond(){
 	}
 
 	// Save world
-
 	if (world.mode == 0){
 		world.save();
 	}
@@ -207,6 +216,18 @@ function calcAngleDegrees(x, y) {
 	return Math.atan2(y, x) * 180 / Math.PI;
 }
 
+function click(){
+	// This function allows actions to be overridden if a button is clicked
+
+	if (world.mode == 0){
+		player.click();
+	}
+
+	ui.click = false; // True for one frame after player releases mouse
+	ui.press = false; // True for one frame as soon as player clicks mouse
+	ui.buttonClicked = false;
+}
+
 // Happens when page loads
 function init(){
 	title.init();
@@ -221,6 +242,7 @@ function init(){
 }
 
 function update(){
+
 	difference = Date.now() - date;
 
 	exactFps = 1000 / difference;
@@ -229,29 +251,22 @@ function update(){
 
 	frame += 1;
 
-	// In Game
-	if (world.mode == 0){
+	// Respawn Screen
+	if (world.mode == 1){
+		world.update();
+		ui.update();
+	}else if (world.mode == 2){
+		ui.update();
+		world.render();
+	}else if (world.mode == 3){
+		title.update();
+	}else if (world.mode == 0){
 		world.update();
 		player.update();
 		ui.update();
 	}
 
-	// Respawn Screen
-	if (world.mode == 1){
-		world.update();
-		ui.update();
-	}
-
-	// Paused
-	if (world.mode == 2){
-		ui.update();
-		world.render();
-	}
-
-	// Title screen
-	if (world.mode == 3){
-		title.update();
-	}
+	click();
 
 	requestAnimationFrame(update);
 }
@@ -358,7 +373,67 @@ function continueGame(){
 	world.mode = 0;
 } 
 
+function accelerateGame(wave){
+
+	factor = wave - world.wave;
+
+	ui.interval = false;
+	ui.intervalFrames = 0;
+
+	world.entities = [];
+
+	// Entity spawning
+	world.wave = factor;
+
+	world.difficulty = 0.1 * factor;
+
+	for (var x = 0; x < factor; x++){
+		world.entitiesPerWave = Math.round(world.increasePerWave * world.entitiesPerWave);
+	}
+
+	world.entityLimiter = world.entitiesPerWave / 2;
+
+	player.damage = 50;
+
+	player.reach = 250; // Max distance between player and enemy, and mouse and enemy to attack
+
+	player.swordCool = 7;
+
+	player.material = 100 * factor;
+
+	// Bow + Arrow
+	player.power = 35;
+	
+	player.bowCool = 7;
+
+	player.arrows = 50 * factor;
+
+	player.bombs = 1 * factor;
+
+	player.bandages = 10 * factor;
+
+	player.fences = 1 * factor;
+
+	player.walls = 10 * factor;
+}
+
+function spawnItems(factor){
+	player.arrows = player.arrows + 50 * factor;
+
+	player.bombs = player.bombs + 1 * factor;
+
+	player.bandages = player.bombs + 10 * factor;
+
+	player.material = player.material + 100 * factor;
+
+	player.fences = player.fences + 50 * factor;
+
+	player.walls = player.walls + 50 * factor;
+}
+
 function Player(){
+	this.immunity = false;
+
 	this.health = 100;
 	this.alive = true;
 	this.maxHealth = 100;
@@ -428,6 +503,12 @@ function Player(){
 	// Saplings
 	this.saplings = 0; // How many saplings the player has
 
+	this.fences = 0;
+	this.fenceCost = 50;
+
+	this.walls = 0;
+	this.wallCost = 100;
+
 	// What the player is selecting 0: Collector 1: Sword 3: Bombs 4: Bandages 5: Saplings
 	this.selection = 0;
 
@@ -447,11 +528,27 @@ function Player(){
 
 		this.movement();
 
+		// Increases number of frames since player last attacked, stopped when it equals cool interval
+		if (this.coolDown < this.coolInterval){
+			this.coolDown += 1;
+		}
+
+		// If playes is out of bounds of the map, start lowering health
+		if (this.x < 0 || this.y < 0 || this.y > world.worldHeight * world.blockSize || this.x > world.worldWidth * world.blockSize){
+			player.decreaseHealth(1);
+		}
+		
+		this.render();
+	}
+
+	Player.prototype.click = function(){
+		// Handles what happens when mouse is clicked, called after UI so actions won't preformed when user clicks a button
+
 		// Check if player pressed mouse, what is done depends on what is selected
-		if (ui.mousePressed == true && ui.screen == false){
+		if (ui.mousePressed == true && ui.screen == false && ui.buttonClicked == false){
 
 			if (this.selection == 0){ // Collect material
-				world.collectMaterial(ui.mouseBx, ui.mouseBy);
+				world.collectAttribute(ui.mouseBx, ui.mouseBy);
 			}
 
 			if (this.selection == 5 && this.saplings > 0){
@@ -461,14 +558,30 @@ function Player(){
 					this.saplings -= 1;
 				}
 			}
+
+			if (this.selection == 6 && this.fences > 0){
+				var placed = world.createAddition(ui.mouseBx, ui.mouseBy, "fence", blockAttribute[5]);
+				if (placed == true){
+					// Sapling was placed, remove one from inventory
+					this.fences -= 1;
+				}
+			}
+
+			if (this.selection == 7 && this.walls > 0){
+				var placed = world.createAddition(ui.mouseBx, ui.mouseBy, "wall", blockAttribute[6]);
+				if (placed == true){
+					// Sapling was placed, remove one from inventory
+					this.walls -= 1;
+				}
+			}
 		}
 
 		// Fires for one frame as soon as player presses mouse and a UI screen is not up, what is done depends on what is selected
-		if (ui.press == true && ui.screen == false){
+		if (ui.press == true && ui.screen == false && ui.buttonClicked == false){
+
 			if (this.selection == 1){
 				this.attack(); // Use sword
 			}
-			
 			if (this.selection == 2){
 				this.shoot(); // Use bow
 			}
@@ -487,18 +600,6 @@ function Player(){
 				}
 			}
 		}
-
-		// Increases number of frames since player last attacked, stopped when it equals cool interval
-		if (this.coolDown < this.coolInterval){
-			this.coolDown += 1;
-		}
-
-		// If playes is out of bounds of the map, start lowering health
-		if (this.x < 0 || this.y < 0 || this.y > world.worldHeight * world.blockSize || this.x > world.worldWidth * world.blockSize){
-			player.decreaseHealth(1);
-		}
-		
-		this.render();
 	}
 
 	Player.prototype.render = function(){
@@ -508,109 +609,11 @@ function Player(){
 		pCtx.fillStyle = "blue";
 		this.screenX = Math.floor((windowWidth / 2) - (this.width / 2));
 		this.screenY = Math.floor((windowHeight / 2) - (this.height / 2));
-		
-		//pCtx.fillRect(this.screenX, this.screenY, this.width, this.height);
 
 		pCtx.strokeStyle = "black";
 
-		//pCtx.lineWidth = 1;
-		//pCtx.strokeRect(this.screenX, this.screenY, this.width, this.height);
-		//pCtx.globalAlpha = 1;
-
 		roundRect(pCtx, this.screenX, this.screenY, this.width, this.height, 5, true, true);
 
-		/*
-		if (this.movementU == true || this.movementD == true){
-			this.orientation = "horizontal";
-		}else if (this.movementL == true || this.movementR == true){
-			this.orientation = "vertical";
-		}
-
-		if (this.orientation == "vertical"){
-
-			circleRadius = Math.round(world.blockSize / 5);
-
-			circle1Y = Math.floor(windowHeight / 2) - (world.blockSize / 8);
-			circle1X = Math.floor(windowWidth / 2);
-
-			circle2Y = Math.floor(windowHeight / 2) + (world.blockSize / 8);
-			circle2X = Math.floor(windowWidth / 2) ;
-
-			circle3X = Math.floor(windowWidth / 2);
-			circle3Y = Math.floor(windowHeight / 2);
-			circle3Radius = circleRadius - 0.5;
-
-			rectY = circle1Y;
-			rectX = Math.floor(windowWidth / 2) - circleRadius;
-			rectWidth = circleRadius * 2;
-			rectHeight = circleRadius;
-
-			this.width = Math.round(world.blockSize * (3 / 4));
-			this.height = circleRadius;
-
-		}else if (this.orientation == "horizontal"){
-
-			circleRadius = Math.round(world.blockSize / 5);
-
-			circle1Y = Math.floor(windowHeight / 2);
-			circle1X = Math.floor(windowWidth / 2) - (world.blockSize / 8);
-
-			circle2Y = Math.floor(windowHeight / 2);
-			circle2X = Math.floor(windowWidth / 2) + (world.blockSize / 8)
-
-			circle3X = Math.floor(windowWidth / 2);
-			circle3Y = Math.floor(windowHeight / 2);
-			circle3Radius = circleRadius - 0.5;
-
-			rectY = Math.floor(windowHeight / 2) - circleRadius;
-			rectX = circle1X;
-			rectWidth = circleRadius;
-			rectHeight = circleRadius * 2;
-
-			this.width = Math.round(world.blockSize * (3 / 4));
-			this.height = circleRadius;
-		}
-
-		pCtx.fillStyle = "blue";
-
-		// Stroke Body
-		pCtx.lineWidth = 2;
-		pCtx.strokeStyle = "rgb(1, 44, 114)";
-
-		pCtx.beginPath();
-		pCtx.arc(circle1X, circle1Y, circleRadius, 0, 2 * Math.PI);
-		pCtx.stroke();
-
-		pCtx.beginPath();
-		pCtx.arc(circle2X, circle2Y, circleRadius, 0, 2 * Math.PI);
-		pCtx.stroke();
-
-		pCtx.strokeRect(rectX, rectY, rectWidth, rectHeight);
-
-		// Fill Body
-		pCtx.beginPath();
-		pCtx.arc(circle1X, circle1Y, circleRadius, 0, 2 * Math.PI);
-		pCtx.fill();
-
-		pCtx.beginPath();
-		pCtx.arc(circle2X, circle2Y, circleRadius, 0, 2 * Math.PI);
-		pCtx.fill();
-
-		pCtx.fillRect(rectX, rectY, rectWidth, rectHeight);
-
-		// Head
-		pCtx.strokeStyle = "rgb(120, 44, 0)";
-		pCtx.lineWidth = 2;
-		pCtx.beginPath();
-		pCtx.arc(circle3X, circle3Y, circle3Radius, 0, 2 * Math.PI);
-		pCtx.stroke();
-
-		pCtx.fillStyle = "rgb(139, 69, 19)";
-		pCtx.beginPath();
-		pCtx.arc(circle3X, circle3Y, circle3Radius, 0, 2 * Math.PI);
-		pCtx.fill();
-
-		*/
 	}
 
 	Player.prototype.movement = function(){
@@ -876,7 +879,6 @@ function Player(){
 	}
 
 	Player.prototype.shoot = function(){
-
 		// Divide to find % amount cool down, damage factor is 1 if fully cooled down
 		damageFactor = this.coolDown / this.coolInterval;
 
@@ -982,14 +984,26 @@ function Player(){
 			player.bandages += amount;
 			player.material -= player.bandageCost * amount;
 		}
+
+		if (item == "fence" && player.material >= player.fenceCost * amount){
+			player.fences += amount;
+			player.material -= player.fenceCost * amount;
+		}
+
+		if (item == "wall" && player.material >= player.wallCost * amount){
+			player.walls += amount;
+			player.material -= player.wallCost * amount;
+		}
 	}
 
 	Player.prototype.decreaseHealth = function(amount){
-		// If player than less health than what they are going to be damaged, set health to 0
-		if (player.health < amount){
-			player.health = 0;
-		}else{
-			player.health -= amount;
+		if (player.immunity == false){
+			// If player than less health than what they are going to be damaged, set health to 0
+			if (player.health < amount){
+				player.health = 0;
+			}else{
+				player.health -= amount;
+			}
 		}
 	}
 }
@@ -1042,6 +1056,8 @@ function Arrow(x, y, targetX, targetY, speed, damage, type, index){
 		this.cX = -this.cX;
 		this.cY = -this.cY;
 	}
+
+	this.stopped = false;
     
     Arrow.prototype.update = function(index){
         this.index = index; // Updates bullet's index
@@ -1100,6 +1116,35 @@ function Arrow(x, y, targetX, targetY, speed, damage, type, index){
 	        }
 	    }
 
+	    // Collision detection with block
+
+	    blockX = Math.floor(this.x / world.blockSize);
+	    blockY = Math.floor(this.y / world.blockSize);
+
+	    if (world.determineEntityBlockCollision(blockX, blockY) == true && this.stopped == false){
+	    	this.cX = 0;
+	    	this.cY = 0;
+
+	    	if (world.blockData[blockX][blockY] == "wall" || world.blockData[blockX][blockY] == "fence"){
+	    		world.destroyStructure(blockX, blockY, 100);
+	    	}
+
+	    	world.render();
+
+	    	this.stopped = true;
+	    }
+
+	    // Collision detection with player if arrow is stoppped
+
+	    if (this.stopped == true){
+	    	value = world.blockSize / 2;
+	    	if (this.screenX > player.screenX - value && this.screenX < player.screenX + value + player.width){
+	            if (this.screenY > player.screenY - value && this.screenY < player.screenY + value + player.height){
+					world.arrows.splice(this.index, 1);
+	                player.arrows += 1;
+	            }
+	        }
+	    }
     }
     Arrow.prototype.render = function(){
     	this.screenX = this.x - player.x + (windowWidth / 2);
@@ -1263,7 +1308,7 @@ function MouseWheelHandler(e){
     var e = window.event || e; // Old IE support
     var delta = Math.max(-1, Math.min(1, (e.wheelDelta || -e.detail)));
 
-    if (player.selection < 5 && delta < 0){
+    if (player.selection < 7 && delta < 0){
     	player.selection += 1;
     }else if (delta < 0){
     	player.selection = 0;
@@ -1272,7 +1317,7 @@ function MouseWheelHandler(e){
     if (player.selection > 0 && delta > 0){
     	player.selection -= 1;
     }else if (delta > 0){
-    	player.selection = 5;
+    	player.selection = 7;
     }
 
     return false;
@@ -1296,13 +1341,72 @@ function set(key){
 		player.movementR = true;
 	}
 
-	// F3
-	if (key == 114){
-		if (ui.debugMenu == true){
-			ui.debugMenu = false;
-		}else{
-			ui.debugMenu = true;
+	// Cheats
+
+	if (key == 80){
+		ps += 1;
+	}
+
+	if (key == 76){
+		ls += 1;
+	}
+
+	if (key == 77){
+		ms += 1;
+	}
+
+	if (ms >= 3 && ls >= 3 && ps >= 3 && devMode == false){
+		alert("devMode Activated")
+		devMode = true;
+	}
+
+	if (devMode == true){
+
+		// F3
+		if (key == 114 || key == 90){
+			if (ui.debugMenu == true){
+				ui.debugMenu = false;
+			}else{
+				ui.debugMenu = true;
+			}
 		}
+
+		// F1
+		if (key == 112 || key == 88){
+			if (world.pauseEnemies == true){
+				world.pauseEnemies = false;
+			}else{
+				world.pauseEnemies = true;
+			}
+		}
+
+		// F2
+		if (key == 113 || key == 67){
+			if (player.immunity == true){
+				player.immunity = false;
+			}else{
+				player.immunity = true;
+			}
+		}
+
+		// F5
+		if (key == 116 || key == 86){
+			accelerateGame(parseInt(prompt("Enter a wave number")));
+		}
+
+		// F6
+		if (key == 117 || key == 66){
+			spawnItems(parseInt(prompt("Enter a factor")));
+		}
+
+		// F7
+		if (key == 118  || key == 78){
+			world.islandRadius = parseInt(prompt("Enter the island radius"))
+			world.worldWidth = world.islandRadius * 3;
+			world.worldHeight = world.islandRadius * 3;
+			world.create();
+		}
+
 	}
 	
 	// Change item selected
@@ -1334,6 +1438,14 @@ function set(key){
 	// 6
 	if (key == 54){
 		player.selection = 5; // Saplings
+	}
+	// 7
+	if (key == 55){
+		player.selection = 6; // Fence
+	}
+	// 8
+	if (key == 56){
+		player.selection = 7; // Wall
 	}
 }
 
@@ -1407,6 +1519,7 @@ function getMousePos(evt) {
 function mouseDown(evt){
 	ui.mousePressed = true;
 	ui.press = true; // Will be true for one frame
+
 }
 function mouseUp(evt){
 	ui.mousePressed = false;
