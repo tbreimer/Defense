@@ -1,4 +1,6 @@
 function World() {
+	this.pauseEnemies = false;
+
 	// Whether movement is based on fps
 	this.fpsBasedMovement = true;
 
@@ -22,7 +24,7 @@ function World() {
 
 	this.bombs = [];
 
-	this.islandRadius = 15;
+	this.islandRadius = 20;
 
 	// % Chance any entity will spawn per frame
 	this.difficulty = 240;
@@ -112,12 +114,18 @@ function World() {
  		}
 
  		// Updates all entities
- 		for (var x = 0; x < this.entities.length; x++){
- 			// Only update if entity is alive
- 			if (this.entities[x].alive == true){
- 				this.entities[x].update();
- 			}
- 		}
+ 		
+		for (var x = 0; x < this.entities.length; x++){
+			// Only update if entity is alive
+			if (this.entities[x].alive == true){
+				if (this.pauseEnemies == false){
+					this.entities[x].update();
+				}else{
+					this.entities[x].render();
+				}
+			}
+		}
+ 		
 
  		// Updates all arrows
  		for (var x = 0; x < this.arrows.length; x++){
@@ -161,14 +169,14 @@ function World() {
  		offsetY = topY - topBlockCoordY;
 
  		// Gets the number of blocks in the canvas
- 		blockWidth = Math.ceil(windowWidth / this.blockSize) + 1;
- 		blockHeight = Math.ceil(windowHeight / this.blockSize) + 1;
+ 		this.blockWidth = Math.ceil(windowWidth / this.blockSize) + 1;
+ 		this.blockHeight = Math.ceil(windowHeight / this.blockSize) + 1;
 
  		bCtx.lineWidth = 1;
 
  		// Loop through all the blocks that need to be drawn
- 		for (var x = 0; x < blockWidth; x++){
- 			for (var y = 0; y < blockHeight; y++){
+ 		for (var x = 0; x < this.blockWidth; x++){
+ 			for (var y = 0; y < this.blockHeight; y++){
 
  				// Ensures that blocks not in the array will not be drawn
  				if (topBlockX + x >= 0 && topBlockX + x < this.worldWidth && topBlockY + y >= 0 && topBlockY + y < this.worldWidth){
@@ -258,6 +266,55 @@ function World() {
       		bCtx.strokeStyle = 'rgb(130, 130, 130)';
       		bCtx.stroke();
 
+		}else if (addition == "fence"){
+
+			centerX = blockX + this.blockSize / 2;
+			centerY = blockY + this.blockSize / 2;
+			radius = this.blockSize / 2 - 3;
+
+      		// Fill background
+			bCtx.beginPath();
+      		bCtx.arc(centerX, centerY, radius, 0, 2 * Math.PI, false);
+      		bCtx.fillStyle = 'rgb(205, 133, 63)';
+      		bCtx.fill();
+
+      		// Fill damage amount
+      		factor = attributes / blockAttribute[5];
+
+      		startAngle = (2 - factor + 0.5) * Math.PI;
+      		endAngle = (factor - 2 + 0.5) * Math.PI;
+
+      		bCtx.beginPath();
+      		bCtx.arc(centerX, centerY, radius, startAngle, endAngle, false);
+      		bCtx.fillStyle = 'rgb(185, 113, 43)';
+      		bCtx.fill();
+
+      		// Stroke
+      		bCtx.beginPath();
+      		bCtx.arc(centerX, centerY, radius, 0, 2 * Math.PI, false);
+
+      		bCtx.lineWidth = 2;
+      		bCtx.strokeStyle = 'rgb(139, 69, 19)';
+      		bCtx.stroke();
+
+		}else if (addition == "wall"){
+
+			// Fill background
+			bCtx.fillStyle = 'rgb(205, 133, 63)';
+			bCtx.fillRect(blockX + 2, blockY + 2, world.blockSize - 4, world.blockSize - 4);
+
+			// Fill damage amount
+			factor = attributes / blockAttribute[6];
+			damageHeight = Math.floor((world.blockSize - 4) * factor);
+
+			height = world.blockSize - 4;
+
+			bCtx.fillStyle = 'rgb(185, 113, 43)';
+			bCtx.fillRect(blockX + 2, blockY + 2 + (height - damageHeight), world.blockSize - 4, damageHeight);
+
+			// Stroke background
+			bCtx.strokeStyle = 'rgb(139, 69, 19)';
+			bCtx.strokeRect(blockX + 2, blockY + 2, world.blockSize - 4, world.blockSize - 4);
 		}
 	}
 
@@ -550,7 +607,7 @@ function World() {
 
 	}
 
-	World.prototype.collectMaterial = function(x, y){
+	World.prototype.collectAttribute = function(x, y){
 		// Collect material from block specified in coords
 
 		// Prevent error from trying to access array out of bounds
@@ -573,8 +630,68 @@ function World() {
 					player.saplings += 1;
 
 				}else{
-					// Else increase the player's material (to prevent player from being able to infinitely increase material)
+					// Else increase thesssss player's material (to prevent player from being able to infinitely increase material)
 					player.material += 1;
+				}
+			}
+
+			if (this.blockData[x][y] == "fence"){
+				this.blockData[x][y] = "grass";
+
+				if (this.blockAttributes[x][y] > (blockAttribute[5] * 0.75)){
+					player.fences += 1;
+				}
+			}
+
+			if (this.blockData[x][y] == "wall"){
+				this.blockData[x][y] = "grass";
+
+				if (this.blockAttributes[x][y] > (blockAttribute[6] * 0.75)){
+					player.walls += 1;
+				}
+			}
+
+			this.render();
+		}
+	}
+
+	World.prototype.destroyStructure = function(x, y, amount){
+		// Called by entities to destroy fences or walls
+
+		// Prevent error from trying to access array out of bounds
+
+		if (x >= 0 && x < this.worldWidth && y >= 0 && y < this.worldWidth){
+
+			if (this.blockData[x][y] == "fence" || this.blockData[x][y] == "wall"){
+
+				// decrease its size
+				this.blockAttributes[x][y] -= amount;
+
+				// If bush is less than minimum size, replace it with a grass block
+				if (this.blockAttributes[x][y] <= 0){
+					this.blockData[x][y] = "grass";
+				}
+			}
+		}
+
+		this.render();
+	}
+
+	World.prototype.destroyBush = function(x, y, amount){
+		// Slowly destroy bush
+
+		// Prevent error from trying to access array out of bounds
+
+		if (x >= 0 && x < this.worldWidth && y >= 0 && y < this.worldWidth){
+
+			if (this.blockData[x][y] == "bush"){
+
+				// decrease its size
+				this.blockAttributes[x][y] -= amount;
+
+				// If bush is less than minimum size, replace it with a grass block
+				if (this.blockAttributes[x][y] < (blockAttribute[3] / 4)){
+					this.blockData[x][y] = "grass";
 				}
 			}
 
@@ -695,10 +812,12 @@ function World() {
 			}
 		}
 	}
+
 	World.prototype.save = function(){
 		localStorage.setItem('player', JSON.stringify(player));
 		localStorage.setItem('world', JSON.stringify(world));
 	}
+	
 	World.prototype.load = function(){
 		var playerObject = JSON.parse(localStorage.getItem('player'));
 
@@ -742,6 +861,8 @@ function World() {
 
 		// What the player is selecting 0: Collector 1: Sword 3: Bombs 4: Bandages 5: Saplings
 		player.selection = playerObject.selection;
+
+		player.immunity = playerObject.immunity;
 
 		
 		// World
@@ -811,6 +932,8 @@ function World() {
 
 		// A number associated with each block in 2d array to hold some attribute about the block
 		this.blockAttributes = worldObject.blockAttributes;
+
+		this.pauseEnemies = worldObject.pauseEnemies;
 
 		for (var x = 0; x < worldObject.entities.length; x++){
 			e = worldObject.entities[x];
