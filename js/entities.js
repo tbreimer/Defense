@@ -53,6 +53,8 @@ function Entity(x, y, health, speed, attackValue, score, color, id, alive){
 
 		this.attack();
 
+		this.destroy();
+
 		// If health is too low, remove entity
 		if (this.health <= 0){
 			this.remove();
@@ -96,6 +98,47 @@ function Entity(x, y, health, speed, attackValue, score, color, id, alive){
 		pCtx.globalAlpha = 1;
 	}
 
+	Entity.prototype.destroy = function(){
+		// If entity is over bush, reduce it in all 4 corners of enemy
+		distance = this.width / 2;
+
+		blockX = Math.floor((this.x + distance) / world.blockSize);
+		blockY = Math.floor((this.y + distance) / world.blockSize);
+
+		if (blockX >= 0 && blockX < world.worldWidth && blockY >= 0 && blockY < world.worldWidth){
+			if (world.blockData[blockX][blockY] == "bush"){
+				world.destroyBush(blockX, blockY, this.attackValue * 4);
+			}
+		}
+
+		blockX = Math.floor((this.x - distance) / world.blockSize);
+		blockY = Math.floor((this.y - distance) / world.blockSize);
+
+		if (blockX >= 0 && blockX < world.worldWidth && blockY >= 0 && blockY < world.worldWidth){
+			if (world.blockData[blockX][blockY] == "bush"){
+				world.destroyBush(blockX, blockY, this.attackValue * 4);
+			}
+		}
+
+		blockX = Math.floor((this.x - distance) / world.blockSize);
+		blockY = Math.floor((this.y + distance) / world.blockSize);
+
+		if (blockX >= 0 && blockX < world.worldWidth && blockY >= 0 && blockY < world.worldWidth){
+			if (world.blockData[blockX][blockY] == "bush"){
+				world.destroyBush(blockX, blockY, this.attackValue * 4);
+			}
+		}
+
+		blockX = Math.floor((this.x + distance) / world.blockSize);
+		blockY = Math.floor((this.y - distance) / world.blockSize);
+
+		if (blockX >= 0 && blockX < world.worldWidth && blockY >= 0 && blockY < world.worldWidth){
+			if (world.blockData[blockX][blockY] == "bush"){
+				world.destroyBush(blockX, blockY, this.attackValue * 4);
+			}
+		}
+	}
+
 	Entity.prototype.damage = function(amount){
 		this.health -= amount;
 
@@ -106,12 +149,75 @@ function Entity(x, y, health, speed, attackValue, score, color, id, alive){
 	}
 
 	Entity.prototype.attack = function(){
+		
 		playerDistance = findDistance(this.x - player.x, this.y - player.y);
 
 		// If player is close and they aren't dead, attack them
 		if (playerDistance < this.reach){
-			player.decreaseHealth(this.attackValue);
+
+			// The purpose of this code is to check if there is a block with collision detection between the enemy and player,
+			// and if so, don't attack. The code uses the same logic as the arrow to go in a line between the player and
+			// entity and check each block to see if there is a block with collision
+
+			blockAttack = false;
+
+			this.degrees = calcAngleDegrees(this.x - this.targetX, this.y - this.targetY) - 90;
+    
+		    // The change per frame in x and y coords to move arrow to target
+			cX = 0;
+			cY = 0;
+			
+			// Finds how many pixels arrow has to travel in X axis for every pixel in Y axis
+			cX = (this.x - player.x) / (this.y - player.y); // Change (x / y)
+			cY = 1;
+
+			// Solves for a ratio that makes the arrow travel at the speed
+			ratio = (Math.sqrt((cX * cX) + (cY * cY))) / (10);
+			
+			// Redefine using ratio
+			cX = cX / ratio;
+			cY = cY / ratio;
+
+			// Negate values if target needs to go the opposite way
+			if (this.y - player.y > 0){
+				cX = -cX;
+				cY = -cY;
+			}
+
+			// Goes forward in 10px increments, checking to see if the block it's on has collision
+			if (cX > 0){
+				y = this.y;
+				for (var x = this.x; x < player.x; x += cX){
+					y += cY;
+
+					blockX = Math.floor(x / world.blockSize);
+					blockY = Math.floor(y / world.blockSize);
+
+					if (world.determineEntityBlockCollision(blockX, blockY) == true){
+						blockAttack = true;
+					}
+				}
+			}else{
+				y = this.y;
+				for (var x = this.x; x > player.x; x += cX){
+					y += cY;
+
+					blockX = Math.floor(x / world.blockSize);
+					blockY = Math.floor(y / world.blockSize);
+
+					if (world.determineEntityBlockCollision(blockX, blockY) == true){
+						blockAttack = true;
+					}
+				}
+			}
+
+			// If blockAttack was never turned true, allow player to be attacked
+			if (blockAttack == false){
+				player.decreaseHealth(this.attackValue);
+			}
+
 		}
+
 	}
 
 	Entity.prototype.remove = function(){
@@ -218,6 +324,7 @@ function Entity(x, y, health, speed, attackValue, score, color, id, alive){
 				// Find if the block has collision
 				if (world.determineEntityBlockCollision(blockX, blockY) == true){
 					blockL = true; 
+					world.destroyStructure(blockX, blockY, this.attackValue);
 				}
 			}
 		}
@@ -230,6 +337,7 @@ function Entity(x, y, health, speed, attackValue, score, color, id, alive){
 				blockY = Math.floor(topY / world.blockSize) + x;
 				if (world.determineEntityBlockCollision(blockX, blockY) == true){
 					blockR = true; 
+					world.destroyStructure(blockX, blockY, this.attackValue);
 				}
 			}
 		}
@@ -242,6 +350,7 @@ function Entity(x, y, health, speed, attackValue, score, color, id, alive){
 				blockX = Math.floor(topX / world.blockSize) + x;
 				if (world.determineEntityBlockCollision(blockX, blockY) == true){
 					blockU = true; 
+					world.destroyStructure(blockX, blockY, this.attackValue);
 				}
 			}
 		}
@@ -250,10 +359,13 @@ function Entity(x, y, health, speed, attackValue, score, color, id, alive){
 		blockD = false
 		if (Math.floor(bottomY / world.blockSize) != Math.floor((bottomY + deltaD) / world.blockSize)){
 			for (var x = 0; x < blockWidth; x ++){
+				
+
 				blockY = Math.floor((bottomY + deltaD) / world.blockSize);
 				blockX = Math.floor(topX / world.blockSize) + x;
 				if (world.determineEntityBlockCollision(blockX, blockY) == true){
 					blockD = true; 
+					world.destroyStructure(blockX, blockY, this.attackValue);
 				}
 			}
 		}
@@ -464,6 +576,8 @@ function Archer(x, y, health, speed, rate, arrowSpeed, arrowDamage, score, color
 		}else{
 			pCtx.fillStyle = this.color;
 		}
+
+		this.destroy();
 		
 		//pCtx.fillRect(Math.floor(this.screenX), Math.floor(this.screenY), this.width, this.height);
 
@@ -474,6 +588,47 @@ function Archer(x, y, health, speed, rate, arrowSpeed, arrowDamage, score, color
 		roundRect(pCtx, this.screenX, this.screenY, this.width, this.height, 5, true, true);
 
 		pCtx.globalAlpha = 1;
+	}
+
+	Archer.prototype.destroy = function(){
+		// If entity is over bush, reduce it in all 4 corners of enemy
+		distance = this.width / 2;
+
+		blockX = Math.floor((this.x + distance) / world.blockSize);
+		blockY = Math.floor((this.y + distance) / world.blockSize);
+
+		if (blockX >= 0 && blockX < world.worldWidth && blockY >= 0 && blockY < world.worldWidth){
+			if (world.blockData[blockX][blockY] == "bush"){
+				world.destroyBush(blockX, blockY, this.attackValue * 4);
+			}
+		}
+
+		blockX = Math.floor((this.x - distance) / world.blockSize);
+		blockY = Math.floor((this.y - distance) / world.blockSize);
+
+		if (blockX >= 0 && blockX < world.worldWidth && blockY >= 0 && blockY < world.worldWidth){
+			if (world.blockData[blockX][blockY] == "bush"){
+				world.destroyBush(blockX, blockY, this.attackValue * 4);
+			}
+		}
+
+		blockX = Math.floor((this.x - distance) / world.blockSize);
+		blockY = Math.floor((this.y + distance) / world.blockSize);
+
+		if (blockX >= 0 && blockX < world.worldWidth && blockY >= 0 && blockY < world.worldWidth){
+			if (world.blockData[blockX][blockY] == "bush"){
+				world.destroyBush(blockX, blockY, this.attackValue * 4);
+			}
+		}
+
+		blockX = Math.floor((this.x + distance) / world.blockSize);
+		blockY = Math.floor((this.y - distance) / world.blockSize);
+
+		if (blockX >= 0 && blockX < world.worldWidth && blockY >= 0 && blockY < world.worldWidth){
+			if (world.blockData[blockX][blockY] == "bush"){
+				world.destroyBush(blockX, blockY, this.attackValue * 4);
+			}
+		}
 	}
 
 	Archer.prototype.shoot = function(){
