@@ -117,41 +117,87 @@ function Title(){
 		tY = windowHeight * 0.2;
 		uCtx.drawImage(this.logo, tX, tY);
 
-		// ---------- Play Button
-		pWidth = windowWidth * 0.3;
-		pHeight = 40;
-
-		pX = (windowWidth / 2) - (pWidth / 2);
-		pY = windowHeight * 0.47;
-
-		// Text
-		uCtx.font = "20px Arial";
-		pText = "Play";
-
-		clicked = this.playButton.update(pX, pY, pWidth, pHeight, pText, 26, 20);
-
-		if (clicked == true){
-			tutorial.present = false;
-			startGame();
+		// ---------- Decides if buttons will be "Play" and "Play with Tutorial" (mode 0) or "Continue Game" and "Start New Game" (mode 1)
+		data = JSON.parse(localStorage.getItem('player'));
+		if (data == null){
+			mode = 0;
+		}else{
+			mode = 1;
 		}
 
-		// ---------- Credits Button
-		tWidth = windowWidth * 0.3;
-		tHeight = 40;
+		if (mode == 0){
+			// ---------- Play Button
+			pWidth = windowWidth * 0.3;
+			pHeight = 40;
 
-		tX = (windowWidth / 2) - (tWidth / 2);
-		tY = pY + 50;
+			pX = (windowWidth / 2) - (pWidth / 2);
+			pY = windowHeight * 0.47;
 
-		// Text
-		uCtx.font = "20px Arial";
-		tText = "Play with Tutorial";
+			// Text
+			uCtx.font = "20px Arial";
+			pText = "Play";
 
-		clicked = this.playButton.update(tX, tY, tWidth, tHeight, tText, 26, 20, true);
+			clicked = this.playButton.update(pX, pY, pWidth, pHeight, pText, 26, 20);
 
-		if (clicked == true){
-			tutorial.screen = 0;
-			tutorial.present = true;
-			startGame();
+			if (clicked == true){
+				tutorial.present = false;
+				startGame();
+			}
+
+			// ---------- Play With Tutorial Button
+			tWidth = windowWidth * 0.3;
+			tHeight = 40;
+
+			tX = (windowWidth / 2) - (tWidth / 2);
+			tY = pY + 50;
+
+			// Text
+			uCtx.font = "20px Arial";
+			tText = "Play with Tutorial";
+
+			clicked = this.playButton.update(tX, tY, tWidth, tHeight, tText, 26, 20, true);
+
+			if (clicked == true){
+				tutorial.screen = 0;
+				tutorial.present = true;
+				startGame();
+			}
+		}else{
+			// ---------- Continue Button
+			pWidth = windowWidth * 0.3;
+			pHeight = 40;
+
+			pX = (windowWidth / 2) - (pWidth / 2);
+			pY = windowHeight * 0.47;
+
+			// Text
+			uCtx.font = "20px Arial";
+			pText = "Continue Game";
+
+			clicked = this.playButton.update(pX, pY, pWidth, pHeight, pText, 26, 20);
+
+			if (clicked == true){
+				tutorial.present = false;
+				continueGame();
+			}
+
+			// ---------- Start New Button
+			tWidth = windowWidth * 0.3;
+			tHeight = 40;
+
+			tX = (windowWidth / 2) - (tWidth / 2);
+			tY = pY + 50;
+
+			// Text
+			uCtx.font = "20px Arial";
+			tText = "Start New Game";
+
+			clicked = this.playButton.update(tX, tY, tWidth, tHeight, tText, 26, 20, true);
+
+			if (clicked == true){
+				tutorial.present = false;
+				startGame();
+			}
 		}
 
 		// ---------- Credits Button
