@@ -1,4 +1,4 @@
-function Entity(x, y, health, speed, attackValue, score, color, id){
+function Entity(x, y, health, speed, attackValue, score, color, id, alive){
 	this.x = x;
 	this.y = y;
 
@@ -25,7 +25,7 @@ function Entity(x, y, health, speed, attackValue, score, color, id){
 
 	this.speed = speed;
 
-	this.alive = true;
+	this.alive = alive;
 	this.health = health;
 
 	this.scoreValue = score;
@@ -153,8 +153,6 @@ function Entity(x, y, health, speed, attackValue, score, color, id){
 	    	}
 	    }
 
-
-
 	    // Convert cX and cY values into 4-directional delta and movement variables
 	    if (cX < 0){
 			this.movementL = true;
@@ -190,6 +188,11 @@ function Entity(x, y, health, speed, attackValue, score, color, id){
 
 		// Collision detection
 
+		deltaR = calcMovement(this.deltaR);
+		deltaL = calcMovement(this.deltaL);
+		deltaD = calcMovement(this.deltaD);
+		deltaU = calcMovement(this.deltaU);
+
 		// Gets x and y of top of entity
 		topX = this.x - (this.width / 2);
 		topY = this.y - (this.height / 2);
@@ -207,10 +210,10 @@ function Entity(x, y, health, speed, attackValue, score, color, id){
 
 		// Collision left
 		// If the entity will pass a block next frame
-		if (Math.floor(topX / world.blockSize) != Math.floor((topX - this.deltaL) / world.blockSize)){
+		if (Math.floor(topX / world.blockSize) != Math.floor((topX - deltaL) / world.blockSize)){
 			// Go through all the blocks adjacent to the entities's left
 			for (var x = 0; x < blockHeight; x ++){
-				blockX = Math.floor((topX - this.deltaL) / world.blockSize);
+				blockX = Math.floor((topX - deltaL) / world.blockSize);
 				blockY = Math.floor(topY / world.blockSize) + x;
 				// Find if the block has collision
 				if (world.determineEntityBlockCollision(blockX, blockY) == true){
@@ -221,9 +224,9 @@ function Entity(x, y, health, speed, attackValue, score, color, id){
 
 		// Collision right
 		blockR = false
-		if (Math.floor(bottomX / world.blockSize) != Math.floor((bottomX + this.deltaR) / world.blockSize)){
+		if (Math.floor(bottomX / world.blockSize) != Math.floor((bottomX + deltaR) / world.blockSize)){
 			for (var x = 0; x < blockHeight; x ++){
-				blockX = Math.floor((bottomX + this.deltaR) / world.blockSize);
+				blockX = Math.floor((bottomX + deltaR) / world.blockSize);
 				blockY = Math.floor(topY / world.blockSize) + x;
 				if (world.determineEntityBlockCollision(blockX, blockY) == true){
 					blockR = true; 
@@ -233,9 +236,9 @@ function Entity(x, y, health, speed, attackValue, score, color, id){
 
 		// Collision up
 		blockU = false
-		if (Math.floor(topY / world.blockSize) != Math.floor((topY - this.deltaU) / world.blockSize)){
+		if (Math.floor(topY / world.blockSize) != Math.floor((topY - deltaU) / world.blockSize)){
 			for (var x = 0; x < blockWidth; x ++){
-				blockY = Math.floor((topY - this.deltaU) / world.blockSize);
+				blockY = Math.floor((topY - deltaU) / world.blockSize);
 				blockX = Math.floor(topX / world.blockSize) + x;
 				if (world.determineEntityBlockCollision(blockX, blockY) == true){
 					blockU = true; 
@@ -245,9 +248,9 @@ function Entity(x, y, health, speed, attackValue, score, color, id){
 
 		// Collision down
 		blockD = false
-		if (Math.floor(bottomY / world.blockSize) != Math.floor((bottomY + this.deltaD) / world.blockSize)){
+		if (Math.floor(bottomY / world.blockSize) != Math.floor((bottomY + deltaD) / world.blockSize)){
 			for (var x = 0; x < blockWidth; x ++){
-				blockY = Math.floor((bottomY + this.deltaD) / world.blockSize);
+				blockY = Math.floor((bottomY + deltaD) / world.blockSize);
 				blockX = Math.floor(topX / world.blockSize) + x;
 				if (world.determineEntityBlockCollision(blockX, blockY) == true){
 					blockD = true; 
@@ -261,10 +264,10 @@ function Entity(x, y, health, speed, attackValue, score, color, id){
 		// Only do collision is entity is going diagonally (prevents bug)
 		if (blockU == false && blockL == false){
 			// Check if entity will be in a diagonal block next frame
-			if (Math.floor(topY / world.blockSize) != Math.floor((topY - this.deltaU) / world.blockSize) && Math.floor(topX / world.blockSize) != Math.floor((topX - this.deltaL) / world.blockSize)){
+			if (Math.floor(topY / world.blockSize) != Math.floor((topY - deltaU) / world.blockSize) && Math.floor(topX / world.blockSize) != Math.floor((topX - deltaL) / world.blockSize)){
 				// Find that diagonal block
-				blockY = Math.floor((topY - this.deltaU) / world.blockSize);
-				blockX = Math.floor((topX - this.deltaL) / world.blockSize);
+				blockY = Math.floor((topY - deltaU) / world.blockSize);
+				blockX = Math.floor((topX - deltaL) / world.blockSize);
 				// Test if that diagonal block has collision
 				if (world.determineEntityBlockCollision(blockX, blockY) == true){
 					// Ensures entity does not come to a complete stop when hitting a block from 
@@ -275,9 +278,9 @@ function Entity(x, y, health, speed, attackValue, score, color, id){
 
 		// Collision bottom left
 		if (blockD == false && blockL == false){
-			if (Math.floor(bottomY / world.blockSize) != Math.floor((bottomY + this.deltaD) / world.blockSize) && Math.floor(topX / world.blockSize) != Math.floor((topX - this.deltaL) / world.blockSize)){
-				blockY = Math.floor((bottomY + this.deltaD) / world.blockSize);
-				blockX = Math.floor((topX - this.deltaL) / world.blockSize);
+			if (Math.floor(bottomY / world.blockSize) != Math.floor((bottomY + deltaD) / world.blockSize) && Math.floor(topX / world.blockSize) != Math.floor((topX - deltaL) / world.blockSize)){
+				blockY = Math.floor((bottomY + deltaD) / world.blockSize);
+				blockX = Math.floor((topX - deltaL) / world.blockSize);
 				if (world.determineEntityBlockCollision(blockX, blockY) == true){
 					blockD = true;
 				}
@@ -286,9 +289,9 @@ function Entity(x, y, health, speed, attackValue, score, color, id){
 
 		// Collision bottom right
 		if (blockD == false && blockR == false){
-			if (Math.floor(bottomY / world.blockSize) != Math.floor((bottomY + this.deltaD) / world.blockSize) && Math.floor(topX / world.blockSize) != Math.floor((bottomX + this.deltaR) / world.blockSize)){
-				blockY = Math.floor((bottomY + this.deltaD) / world.blockSize);
-				blockX = Math.floor((bottomX + this.deltaR) / world.blockSize);
+			if (Math.floor(bottomY / world.blockSize) != Math.floor((bottomY + deltaD) / world.blockSize) && Math.floor(topX / world.blockSize) != Math.floor((bottomX + deltaR) / world.blockSize)){
+				blockY = Math.floor((bottomY + deltaD) / world.blockSize);
+				blockX = Math.floor((bottomX + deltaR) / world.blockSize);
 				if (world.determineEntityBlockCollision(blockX, blockY) == true){
 					blockD = true;
 				}
@@ -297,9 +300,9 @@ function Entity(x, y, health, speed, attackValue, score, color, id){
 
 		// Collision top right
 		if (blockU == false && blockR == false){
-			if (Math.floor(bottomY / world.blockSize) != Math.floor((topY - this.deltaU) / world.blockSize) && Math.floor(topX / world.blockSize) != Math.floor((bottomX + this.deltaR) / world.blockSize)){
-				blockY = Math.floor((topY - this.deltaU) / world.blockSize);
-				blockX = Math.floor((bottomX + this.deltaR) / world.blockSize);
+			if (Math.floor(bottomY / world.blockSize) != Math.floor((topY - deltaU) / world.blockSize) && Math.floor(topX / world.blockSize) != Math.floor((bottomX + deltaR) / world.blockSize)){
+				blockY = Math.floor((topY - deltaU) / world.blockSize);
+				blockX = Math.floor((bottomX + deltaR) / world.blockSize);
 				if (world.determineEntityBlockCollision(blockX, blockY) == true){
 					blockU = true;
 				}
@@ -317,22 +320,22 @@ function Entity(x, y, health, speed, attackValue, score, color, id){
 				// For each direction, it sees if the position that the entity will be in next frame will cause it to be inside of another entity.
 				// If that is the case, it prevents movement in that direction.
 				
-				rightX = this.x + this.deltaR;
+				rightX = this.x + deltaR;
 				if (rightX + this.width >= target.x && rightX <= target.x + target.width && this.y + this.height >= target.y && this.y <= target.y + target.height){
 					blockR = true;
 				}
 
-				leftX = this.x - this.deltaL;
+				leftX = this.x - deltaL;
 				if (leftX + this.width >= target.x && leftX <= target.x + target.width && this.y + this.height >= target.y && this.y <= target.y + target.height){
 					blockL = true;
 				}
 
-				bottomY = this.y + this.deltaD;
+				bottomY = this.y + deltaD;
 				if (this.x + this.width >= target.x && this.x <= target.x + target.width && bottomY + this.height >= target.y && bottomY <= target.y + target.height){
 					blockD = true;
 				}
 
-				topY = this.y - this.deltaU;
+				topY = this.y - deltaU;
 				if (this.x + this.width >= target.x && this.x <= target.x + target.width && topY + this.height >= target.y && topY <= target.y + target.height){
 					blockU = true
 				}
@@ -344,24 +347,24 @@ function Entity(x, y, health, speed, attackValue, score, color, id){
 		// If no block is in the way, change the coordinates
 
 		if (blockR == false){
-			this.x += this.deltaR;
+			this.x += deltaR;
 		}
 
 		if (blockL == false){
-			this.x -= this.deltaL;
+			this.x -= deltaL;
 		}
 		
 		if (blockD == false){
-			this.y += this.deltaD;
+			this.y += deltaD;
 		}
 	
 		if (blockU == false){
-			this.y -= this.deltaU;
+			this.y -= deltaU;
 		}
 	}
 }                   
 
-function Archer(x, y, health, speed, rate, arrowSpeed, arrowDamage, score, color, id){
+function Archer(x, y, health, speed, rate, arrowSpeed, arrowDamage, score, color, id, alive){
 	this.x = x;
 	this.y = y;
 
@@ -391,7 +394,7 @@ function Archer(x, y, health, speed, rate, arrowSpeed, arrowDamage, score, color
 	this.scoreValue = score;
 	this.xpValue = score;
 
-	this.alive = true;
+	this.alive = alive;
 	this.health = health;
 
 	// If entity has been hurt
@@ -428,7 +431,13 @@ function Archer(x, y, health, speed, rate, arrowSpeed, arrowDamage, score, color
 		if (this.frames % this.rate == 0){
 			this.shoot();
 		}
+		
+		this.render();
 
+		this.frames += 1;
+	}
+
+	Archer.prototype.render = function(){
 		// Draw entity
 
 		// Decrease transparency if recently spawned
@@ -465,8 +474,6 @@ function Archer(x, y, health, speed, rate, arrowSpeed, arrowDamage, score, color
 		roundRect(pCtx, this.screenX, this.screenY, this.width, this.height, 5, true, true);
 
 		pCtx.globalAlpha = 1;
-
-		this.frames += 1;
 	}
 
 	Archer.prototype.shoot = function(){
@@ -556,6 +563,11 @@ function Archer(x, y, health, speed, rate, arrowSpeed, arrowDamage, score, color
 			this.deltaD = 0;
 		}
 
+		deltaR = calcMovement(this.deltaR);
+		deltaL = calcMovement(this.deltaL);
+		deltaD = calcMovement(this.deltaD);
+		deltaU = calcMovement(this.deltaU);
+
 		// Collision detection
 
 		// Gets x and y of top of entity
@@ -575,10 +587,10 @@ function Archer(x, y, health, speed, rate, arrowSpeed, arrowDamage, score, color
 
 		// Collision left
 		// If the entity will pass a block next frame
-		if (Math.floor(topX / world.blockSize) != Math.floor((topX - this.deltaL) / world.blockSize)){
+		if (Math.floor(topX / world.blockSize) != Math.floor((topX - deltaL) / world.blockSize)){
 			// Go through all the blocks adjacent to the entities's left
 			for (var x = 0; x < blockHeight; x ++){
-				blockX = Math.floor((topX - this.deltaL) / world.blockSize);
+				blockX = Math.floor((topX - deltaL) / world.blockSize);
 				blockY = Math.floor(topY / world.blockSize) + x;
 				// Find if the block has collision
 				if (world.determineEntityBlockCollision(blockX, blockY) == true){
@@ -589,9 +601,9 @@ function Archer(x, y, health, speed, rate, arrowSpeed, arrowDamage, score, color
 
 		// Collision right
 		blockR = false
-		if (Math.floor(bottomX / world.blockSize) != Math.floor((bottomX + this.deltaR) / world.blockSize)){
+		if (Math.floor(bottomX / world.blockSize) != Math.floor((bottomX + deltaR) / world.blockSize)){
 			for (var x = 0; x < blockHeight; x ++){
-				blockX = Math.floor((bottomX + this.deltaR) / world.blockSize);
+				blockX = Math.floor((bottomX + deltaR) / world.blockSize);
 				blockY = Math.floor(topY / world.blockSize) + x;
 				if (world.determineEntityBlockCollision(blockX, blockY) == true){
 					blockR = true; 
@@ -601,9 +613,9 @@ function Archer(x, y, health, speed, rate, arrowSpeed, arrowDamage, score, color
 
 		// Collision up
 		blockU = false
-		if (Math.floor(topY / world.blockSize) != Math.floor((topY - this.deltaU) / world.blockSize)){
+		if (Math.floor(topY / world.blockSize) != Math.floor((topY - deltaU) / world.blockSize)){
 			for (var x = 0; x < blockWidth; x ++){
-				blockY = Math.floor((topY - this.deltaU) / world.blockSize);
+				blockY = Math.floor((topY - deltaU) / world.blockSize);
 				blockX = Math.floor(topX / world.blockSize) + x;
 				if (world.determineEntityBlockCollision(blockX, blockY) == true){
 					blockU = true; 
@@ -613,9 +625,9 @@ function Archer(x, y, health, speed, rate, arrowSpeed, arrowDamage, score, color
 
 		// Collision down
 		blockD = false
-		if (Math.floor(bottomY / world.blockSize) != Math.floor((bottomY + this.deltaD) / world.blockSize)){
+		if (Math.floor(bottomY / world.blockSize) != Math.floor((bottomY + deltaD) / world.blockSize)){
 			for (var x = 0; x < blockWidth; x ++){
-				blockY = Math.floor((bottomY + this.deltaD) / world.blockSize);
+				blockY = Math.floor((bottomY + deltaD) / world.blockSize);
 				blockX = Math.floor(topX / world.blockSize) + x;
 				if (world.determineEntityBlockCollision(blockX, blockY) == true){
 					blockD = true; 
@@ -629,10 +641,10 @@ function Archer(x, y, health, speed, rate, arrowSpeed, arrowDamage, score, color
 		// Only do collision is entity is going diagonally (prevents bug)
 		if (blockU == false && blockL == false){
 			// Check if entity will be in a diagonal block next frame
-			if (Math.floor(topY / world.blockSize) != Math.floor((topY - this.deltaU) / world.blockSize) && Math.floor(topX / world.blockSize) != Math.floor((topX - this.deltaL) / world.blockSize)){
+			if (Math.floor(topY / world.blockSize) != Math.floor((topY - deltaU) / world.blockSize) && Math.floor(topX / world.blockSize) != Math.floor((topX - deltaL) / world.blockSize)){
 				// Find that diagonal block
-				blockY = Math.floor((topY - this.deltaU) / world.blockSize);
-				blockX = Math.floor((topX - this.deltaL) / world.blockSize);
+				blockY = Math.floor((topY - deltaU) / world.blockSize);
+				blockX = Math.floor((topX - deltaL) / world.blockSize);
 				// Test if that diagonal block has collision
 				if (world.determineEntityBlockCollision(blockX, blockY) == true){
 					// Ensures entity does not come to a complete stop when hitting a block from 
@@ -643,9 +655,9 @@ function Archer(x, y, health, speed, rate, arrowSpeed, arrowDamage, score, color
 
 		// Collision bottom left
 		if (blockD == false && blockL == false){
-			if (Math.floor(bottomY / world.blockSize) != Math.floor((bottomY + this.deltaD) / world.blockSize) && Math.floor(topX / world.blockSize) != Math.floor((topX - this.deltaL) / world.blockSize)){
-				blockY = Math.floor((bottomY + this.deltaD) / world.blockSize);
-				blockX = Math.floor((topX - this.deltaL) / world.blockSize);
+			if (Math.floor(bottomY / world.blockSize) != Math.floor((bottomY + deltaD) / world.blockSize) && Math.floor(topX / world.blockSize) != Math.floor((topX - deltaL) / world.blockSize)){
+				blockY = Math.floor((bottomY + deltaD) / world.blockSize);
+				blockX = Math.floor((topX - deltaL) / world.blockSize);
 				if (world.determineEntityBlockCollision(blockX, blockY) == true){
 					blockD = true;
 				}
@@ -654,9 +666,9 @@ function Archer(x, y, health, speed, rate, arrowSpeed, arrowDamage, score, color
 
 		// Collision bottom right
 		if (blockD == false && blockR == false){
-			if (Math.floor(bottomY / world.blockSize) != Math.floor((bottomY + this.deltaD) / world.blockSize) && Math.floor(topX / world.blockSize) != Math.floor((bottomX + this.deltaR) / world.blockSize)){
-				blockY = Math.floor((bottomY + this.deltaD) / world.blockSize);
-				blockX = Math.floor((bottomX + this.deltaR) / world.blockSize);
+			if (Math.floor(bottomY / world.blockSize) != Math.floor((bottomY + deltaD) / world.blockSize) && Math.floor(topX / world.blockSize) != Math.floor((bottomX + deltaR) / world.blockSize)){
+				blockY = Math.floor((bottomY + deltaD) / world.blockSize);
+				blockX = Math.floor((bottomX + deltaR) / world.blockSize);
 				if (world.determineEntityBlockCollision(blockX, blockY) == true){
 					blockD = true;
 				}
@@ -665,9 +677,9 @@ function Archer(x, y, health, speed, rate, arrowSpeed, arrowDamage, score, color
 
 		// Collision top right
 		if (blockU == false && blockR == false){
-			if (Math.floor(bottomY / world.blockSize) != Math.floor((topY - this.deltaU) / world.blockSize) && Math.floor(topX / world.blockSize) != Math.floor((bottomX + this.deltaR) / world.blockSize)){
-				blockY = Math.floor((topY - this.deltaU) / world.blockSize);
-				blockX = Math.floor((bottomX + this.deltaR) / world.blockSize);
+			if (Math.floor(bottomY / world.blockSize) != Math.floor((topY - deltaU) / world.blockSize) && Math.floor(topX / world.blockSize) != Math.floor((bottomX + deltaR) / world.blockSize)){
+				blockY = Math.floor((topY - deltaU) / world.blockSize);
+				blockX = Math.floor((bottomX + deltaR) / world.blockSize);
 				if (world.determineEntityBlockCollision(blockX, blockY) == true){
 					blockU = true;
 				}
@@ -685,22 +697,22 @@ function Archer(x, y, health, speed, rate, arrowSpeed, arrowDamage, score, color
 				// For each direction, it sees if the position that the entity will be in next frame will cause it to be inside of another entity.
 				// If that is the case, it prevents movement in that direction.
 				
-				rightX = this.x + this.deltaR;
+				rightX = this.x + deltaR;
 				if (rightX + this.width >= target.x && rightX <= target.x + target.width && this.y + this.height >= target.y && this.y <= target.y + target.height){
 					blockR = true;
 				}
 
-				leftX = this.x - this.deltaL;
+				leftX = this.x - deltaL;
 				if (leftX + this.width >= target.x && leftX <= target.x + target.width && this.y + this.height >= target.y && this.y <= target.y + target.height){
 					blockL = true;
 				}
 
-				bottomY = this.y + this.deltaD;
+				bottomY = this.y + deltaD;
 				if (this.x + this.width >= target.x && this.x <= target.x + target.width && bottomY + this.height >= target.y && bottomY <= target.y + target.height){
 					blockD = true;
 				}
 
-				topY = this.y - this.deltaU;
+				topY = this.y - deltaU;
 				if (this.x + this.width >= target.x && this.x <= target.x + target.width && topY + this.height >= target.y && topY <= target.y + target.height){
 					blockU = true
 				}
@@ -712,20 +724,19 @@ function Archer(x, y, health, speed, rate, arrowSpeed, arrowDamage, score, color
 		// If no block is in the way, change the coordinates
 
 		if (blockR == false){
-			this.x += this.deltaR;
+			this.x += deltaR;
 		}
 
 		if (blockL == false){
-			this.x -= this.deltaL;
+			this.x -= deltaL;
 		}
 		
 		if (blockD == false){
-			this.y += this.deltaD;
+			this.y += deltaD;
 		}
 	
 		if (blockU == false){
-			this.y -= this.deltaU;
+			this.y -= deltaU;
 		}
 	}
 }                   
-
