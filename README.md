@@ -3,7 +3,8 @@ This repository tracks the development of a game which was released in early Sep
 A working example can be found at http://forestquest.net/defense/game.html
 
 ### v1.2
-* Arrows no longer fire when clicking buttons
+* Arrows No Longer Fire When Clicking Buttons
+* Larger World
 * Cheat Menu
 * Enemies Destroy Bushes
 * Fences and Walls made of Material
