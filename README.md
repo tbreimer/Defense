@@ -17,7 +17,7 @@ A working example can be found at http://forestquest.net/defense/game.html
 * Enemies Can Sometimes go Through Walls and Fences
 * Bombs Don't Explode with Low Framerate
 
-### Planned
+## Planned
 
 ### v1.3
 * Destroy and Place Rocks
