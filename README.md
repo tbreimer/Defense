@@ -13,6 +13,7 @@ A working example can be found at http://forestquest.net/defense/game.html
 
 ### Bugs
 * Arrows Fire Slightly off From Mouse
+* Enemies Can Sometimes go Through Walls and Fences
 
 ### Planned
 
