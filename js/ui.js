@@ -11,6 +11,7 @@ waveIndicator = new WaveIndicator();
 labels = new Labels();
 
 debugMenu = new DebugMenu();
+cheatIndicators = new CheatIndicators();
 
 coolDownIndicator = new CoolDownIndicator();
 
@@ -31,11 +32,11 @@ function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
 	ctx.closePath();
 
 	if (fill == true) {
-	ctx.fill();
+		ctx.fill();
 	}
 
 	if (stroke == true) {
-	ctx.stroke();
+		ctx.stroke();
 	}
 }
 
@@ -83,6 +84,11 @@ function Button(){
 				roundRect(uCtx, this.x, this.y, this.width, this.height, 12, true, true);
 				if (ui.click == true){
 					clicked = true;
+					
+				}
+
+				if (ui.press == true){
+					ui.buttonClicked = true;
 				}
 			}
 		}
@@ -112,6 +118,7 @@ function UI(){
 	this.mousePressed = false;
 	this.click = false;
 	this.press = false;
+	this.buttonClicked = false;
 
 	this.upgradeScreen = false;
 	this.createScreen = false;
@@ -125,6 +132,10 @@ function UI(){
 
 		if(this.debugMenu == true){
 			debugMenu.update();
+		}
+
+		if (devMode == true){
+			cheatIndicators.update();
 		}
 
 		// In game UI
@@ -180,9 +191,7 @@ function UI(){
 		// Get the world coordinates of the mouse
 		this.mouseWx = Math.floor(canvasTopx + this.mouseX) - 40;
 		this.mouseWy = Math.floor(canvasTopy + this.mouseY) - 40;
-		
-		this.click = false; // True for one frame after player releases mouse
-		this.press = false; // True for one frame as soon as player clicks mouse
+	
 	}
 }
 
@@ -205,6 +214,50 @@ function DebugMenu(){
 		uCtx.fillText("Y " + player.y + ", " + Math.floor(player.y / world.blockSize) + ", " + ui.mouseY, this.x, this.y + (space * 2));
 		uCtx.fillText("Entities " + world.entityCounter + "/" + world.entityLimiter , this.x, this.y + (space * 3));
 
+	}
+}
+
+function CheatIndicators(){
+	CheatIndicators.prototype.update = function(){
+		this.x = windowWidth - 60;
+		this.y = windowHeight - 30;
+
+		if (world.pauseEnemies == true){
+			// Enemy
+			uCtx.fillStyle = "rgb(0, 255, 250)";
+			uCtx.strokeStyle = "black";
+			roundRect(uCtx, this.x, this.y, 20, 20, 5, true, true);
+
+			// Circle
+			uCtx.strokeStyle = "rgb(255, 0, 0)";
+			uCtx.beginPath();
+			uCtx.arc(this.x + 10, this.y + 10, 6, 0, 2 * Math.PI);
+			uCtx.stroke();
+
+			// Line
+			uCtx.beginPath();
+			uCtx.moveTo(this.x + 5, this.y + 5);
+			uCtx.lineTo(this.x + 15, this.y + 15);
+			uCtx.stroke();
+		}
+
+		if (player.immunity == true){
+			// Circle
+			uCtx.fillStyle = "rgb(255, 255, 255)";
+			uCtx.beginPath();
+			uCtx.arc(this.x + 40, this.y + 10, 10, 0, 2 * Math.PI);
+			uCtx.fill();
+
+			// Circle
+			uCtx.strokeStyle = "rgb(255, 0, 0)";
+			uCtx.beginPath();
+			uCtx.arc(this.x + 37, this.y + 10, 3, 0, 2 * Math.PI);
+			uCtx.stroke();
+
+			uCtx.beginPath();
+			uCtx.arc(this.x + 43, this.y + 10, 3, 0, 2 * Math.PI);
+			uCtx.stroke();
+		}
 	}
 }
 
@@ -764,6 +817,8 @@ function CreateScreen(){
 	this.arrowButton = new Button();
 	this.bombButton = new Button();
 	this.bandageButton = new Button();
+	this.fenceButton = new Button();
+	this.wallButton = new Button();
 
 	this.bgColor = "rgb(220, 220, 220)";
 	CreateScreen.prototype.update = function(){
@@ -812,33 +867,44 @@ function CreateScreen(){
 		uCtx.lineTo(closeX, closeY + closeHeight);
 		uCtx.stroke();
 
-		if (windowHeight > 660){
 
-			// ---------- Upgrade Label
-			uX = x + 70;
-			uY = y + 49;
-			uText = "Create Items";
-			uCtx.font = "25px Arial";
-			uCtx.fillStyle = "rgb(100, 100, 100)";
 
-			uCtx.fillText(uText, uX, uY);
+		// ---------- Upgrade Label
+		uX = x + 70;
+		uY = y + 49;
+		uText = "Create Items";
+		uCtx.font = "25px Arial";
+		uCtx.fillStyle = "rgb(100, 100, 100)";
 
-			// ----------- Line
-			lWidth = width - 50;
-			lX = windowWidth / 2 - lWidth / 2;
-			lY = y + 62;
+		uCtx.fillText(uText, uX, uY);
 
-			uCtx.beginPath();
-			uCtx.moveTo(lX, lY);
-			uCtx.lineTo(lX + lWidth, lY);
-			uCtx.stroke();
-		}
+		// ----------- Line
+		lWidth = width - 50;
+		lX = windowWidth / 2 - lWidth / 2;
+		lY = y + 62;
+
+		uCtx.beginPath();
+		uCtx.moveTo(lX, lY);
+		uCtx.lineTo(lX + lWidth, lY);
+		uCtx.stroke();
+		
+
+		// Weapons Label
+		uCtx.font = "25px Arial";
+		weaponsText = "Weapons";
+		weaponsWidth = uCtx.measureText(weaponsText).width;
+		weaponsX = (windowWidth / 2) - (weaponsWidth / 2);
+		weaponsY = y + 100;
+		uCtx.font = "25px Arial";
+		uCtx.fillStyle = "rgb(100, 100, 100)";
+
+		uCtx.fillText(weaponsText, weaponsX, weaponsY);
 
 		// Arrow Button
 		arrowBWidth = width / 2;
 		arrowBHeight = 40;
 		arrowBX = (windowWidth / 2) - (arrowBWidth / 2);
-		arrowBY = (windowHeight / 2) - (arrowBHeight / 2);
+		arrowBY = weaponsY + 70;
 
 		clicked = this.arrowButton.update(arrowBX, arrowBY, arrowBWidth, arrowBHeight, "Make 10 Arrows: " + player.arrowCost * 10 + " Material", 25, 20, true);
 
@@ -858,16 +924,62 @@ function CreateScreen(){
 			player.addItem("bomb", 1);
 		}
 
+		// Health Label
+		uCtx.font = "25px Arial";
+		healthText = "Health";
+		healthWidth = uCtx.measureText(healthText).width;
+		healthX = (windowWidth / 2) - (healthWidth / 2);
+		healthY = y + 250;
+		uCtx.font = "25px Arial";
+		uCtx.fillStyle = "rgb(100, 100, 100)";
+
+		uCtx.fillText(healthText, healthX, healthY);
+
 		// Bandage Button
 		bandageBWidth = width / 2;
 		bandageBHeight = 40;
 		bandageBX = (windowWidth / 2) - (bandageBWidth / 2);
-		bandageBY = arrowBY + 50;
+		bandageBY = healthY + 20;
 
 		clicked = this.bandageButton.update(bandageBX, bandageBY, bandageBWidth, bandageBHeight, "Make Bandage: " + player.bandageCost + " Material", 25, 20, true);
 
 		if (clicked == true){
 			player.addItem("bandage", 1);
+		}
+
+		// Construction Label
+		uCtx.font = "25px Arial";
+		constructionText = "Construction";
+		constructionWidth = uCtx.measureText(constructionText).width;
+		constructionX = (windowWidth / 2) - (constructionWidth / 2);
+		constructionY = y + 350;
+		uCtx.font = "25px Arial";
+		uCtx.fillStyle = "rgb(100, 100, 100)";
+
+		uCtx.fillText(constructionText, constructionX, constructionY);
+
+		// Fence Button
+		fenceWidth = width / 2;
+		fenceHeight = 40;
+		fenceX = (windowWidth / 2) - (fenceWidth / 2);
+		fenceY = constructionY + 20;
+
+		clicked = this.fenceButton.update(fenceX, fenceY, fenceWidth, fenceHeight, "Make Fence: " + player.fenceCost + " Material", 25, 20, true);
+
+		if (clicked == true){
+			player.addItem("fence", 1);
+		}
+
+		// Wall Button
+		wallWidth = width / 2;
+		wallHeight = 40;
+		wallX = (windowWidth / 2) - (wallWidth / 2);
+		wallY = constructionY + 70;
+
+		clicked = this.wallButton.update(wallX, wallY, wallWidth, wallHeight, "Make Wall: " + player.wallCost + " Material", 25, 20, true);
+
+		if (clicked == true){
+			player.addItem("wall", 1);
 		}
 	}
 
@@ -919,7 +1031,7 @@ function PauseScreen(){
 			uCtx.arc(closeX + (closeWidth / 2), closeY + (closeHeight / 2), closeRadius, 0, 2 * Math.PI);
 			uCtx.fill();
 
-			if (ui.click == true){
+			if (ui.press == true){
 				this.close();
 			}
 		}
@@ -1027,11 +1139,11 @@ function PauseScreen(){
 		uCtx.fillStyle = "rgb(100, 100, 100)";
 		uCtx.fillText(lText, lX, lY);
 
-		range = 60 - 20;
+		range = 50 - 30;
 
 		factor = sWidth / range;
 
-		bX = sX + ((world.blockSize - 20) * factor);
+		bX = sX + ((world.blockSize - 30) * factor);
 		bY = sY;
 		bRadius = 8;
 
@@ -1070,12 +1182,10 @@ function PauseScreen(){
 				bX = ui.mouseX;
 			}
 
-			blockSize = Math.round((bX - sX) / factor + 20);
+			blockSize = Math.round((bX - sX) / factor + 30);
 
 			world.changeBlockSize(blockSize);
 		}
-		
-
 	}
 	PauseScreen.prototype.open = function(){
 		world.mode = 2;
@@ -1096,7 +1206,7 @@ function Inventory(){
 	this.x = 10;
 	this.y = 45;
 	this.width = 150;
-	this.height = 200;
+	this.height = 260;
 
 	this.bgColor = "rgb(220, 220, 220)";
 
@@ -1126,7 +1236,7 @@ function Inventory(){
 		// ---------- Side Numbers
 		uCtx.font = "10px Arial";
 		uCtx.fillStyle = "rgb(100, 100, 100)"
-		for (var x = 1; x < 7; x++){
+		for (var x = 1; x < 9; x++){
 			uCtx.fillText(x, this.x + 11, (this.y - 2) + 30 * x);
 		}
 
@@ -1217,5 +1327,46 @@ function Inventory(){
 		saplingText = player.saplings;
 
 		uCtx.fillText(saplingText, saplingTX, saplingTY);
+
+		// ---------- Fence
+		fenceX = this.x + 71;
+		fenceY = this.y + 204;
+
+		// Fill and stroke
+		uCtx.beginPath();
+  		uCtx.arc(fenceX, fenceY, 9, 0, 2 * Math.PI, false);
+  		uCtx.fillStyle = 'rgb(205, 133, 63)';
+  		uCtx.fill();
+
+  		uCtx.lineWidth = 2;
+  		uCtx.strokeStyle = 'rgb(160, 82, 45)';
+  		uCtx.stroke();
+
+		uCtx.fillStyle = "rgb(100, 100, 100)";
+		uCtx.font = "16px Arial";
+
+		fenceTX = this.x + 93;
+		fenceTY = this.y + 210;
+		fenceText = player.fences;
+
+		uCtx.fillText(fenceText, fenceTX, fenceTY);
+
+		// ---------- Walls
+		wallX = this.x + 62;
+		wallY = this.y + 224;
+		uCtx.fillStyle = 'rgb(205, 133, 63)';
+		uCtx.fillRect(wallX, wallY, 18, 18);
+
+		uCtx.strokeStyle = 'rgb(160, 82, 45)';
+		uCtx.strokeRect(wallX, wallY, 18, 18);
+
+		uCtx.fillStyle = "rgb(100, 100, 100)";
+		uCtx.font = "16px Arial";
+
+		wallTX = this.x + 93;
+		wallTY = this.y + 240;
+		wallText = player.walls;
+
+		uCtx.fillText(wallText, wallTX, wallTY);
 	}
 }
