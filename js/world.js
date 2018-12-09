@@ -1,4 +1,7 @@
 function World() {
+	// Whether movement is based on fps
+	this.fpsBasedMovement = true;
+
 	// 0: In game 1: Dead 2: Paused 3: Title Screen
 	this.mode = 3;
 
@@ -389,7 +392,7 @@ function World() {
 
 	 				// If bush is less then maximum size, grow it
 	 				if (blockAttribute[3] > this.blockAttributes[x][y]){
-	 					this.blockAttributes[x][y] += 0.3;
+	 					this.blockAttributes[x][y] += calcInterval(0.3);
 	 				}
 	 			}
 
@@ -447,13 +450,13 @@ function World() {
 				random = getRandom(0, 100);
 
 				if (random < this.archerSpawn){
-					this.entities.push(new Archer(x, y, this.archerHealth, this.archerSpeed, this.archerRate, this.archerArrowSpeed, this.archerArrowDamage, this.archerScore, "rgb(176, 50, 255)", this.entities.length));
+					this.entities.push(new Archer(x, y, this.archerHealth, this.archerSpeed, this.archerRate, this.archerArrowSpeed, this.archerArrowDamage, this.archerScore, "rgb(176, 50, 255)", this.entities.length, true));
 				}else if (random > this.archerSpawn && random < this.archerSpawn + this.tankSpawn){
-					this.entities.push(new Entity(x, y, this.tankHealth, this.tankSpeed, this.tankDamage, this.tankScore, "rgb(0, 255, 250)", this.entities.length));
+					this.entities.push(new Entity(x, y, this.tankHealth, this.tankSpeed, this.tankDamage, this.tankScore, "rgb(0, 255, 250)", this.entities.length, true));
 				}else if (random > this.archerSpawn + this.tankSpawn && random < this.archerSpawn + this.tankSpawn + this.speedSpawn){
-					this.entities.push(new Entity(x, y, this.speedHealth, this.speedSpeed, this.speedDamage, this.speedScore, "rgb(25, 255, 25)", this.entities.length));
+					this.entities.push(new Entity(x, y, this.speedHealth, this.speedSpeed, this.speedDamage, this.speedScore, "rgb(25, 255, 25)", this.entities.length, true));
 				}else{
-					this.entities.push(new Entity(x, y, this.entityHealth, this.entitySpeed, this.entityDamage, this.entityScore, "rgb(255, 0, 0)", this.entities.length));
+					this.entities.push(new Entity(x, y, this.entityHealth, this.entitySpeed, this.entityDamage, this.entityScore, "rgb(255, 0, 0)", this.entities.length, true));
 				}
 				
 				this.entitiesSpawned += 1;
@@ -520,7 +523,6 @@ function World() {
 
  				this.entities[x].width = Math.round(world.blockSize * 0.75);
  				this.entities[x].height = Math.round(world.blockSize * 0.75);
-
  				this.entities[x].render();
  			}
  		}
@@ -692,5 +694,135 @@ function World() {
 				}
 			}
 		}
+	}
+	World.prototype.save = function(){
+		localStorage.setItem('player', JSON.stringify(player));
+		localStorage.setItem('world', JSON.stringify(world));
+	}
+	World.prototype.load = function(){
+		var playerObject = JSON.parse(localStorage.getItem('player'));
+
+		player.health = playerObject.health;
+		player.maxHealth = playerObject.maxHealth;
+
+		player.score = playerObject.score;
+
+		player.material = playerObject.material;
+
+		player.xp = playerObject.xp;
+
+		// Center player on island 
+		player.x = playerObject.x;
+		player.y = playerObject.y;
+
+		player.width = playerObject.width;
+		player.height = playerObject.height;
+
+		player.speed = playerObject.speed;
+
+		// Sword
+		player.damage = playerObject.damage;
+
+		player.reach = playerObject.reach; // Max distance between player and enemy, and mouse and enemy to attack
+
+		player.swordCool = playerObject.swordCool;
+
+		player.power = playerObject.power;
+		
+		player.bowCool = playerObject.bowCool;
+
+		player.arrows = playerObject.arrows;
+
+		player.bombs = playerObject.bombs;
+
+		player.bandages = playerObject.bandages;
+
+		// Saplings
+		player.saplings = playerObject.saplings; // How many saplings the player has
+
+		// What the player is selecting 0: Collector 1: Sword 3: Bombs 4: Bandages 5: Saplings
+		player.selection = playerObject.selection;
+
+		
+		// World
+
+		var worldObject = JSON.parse(localStorage.getItem('world'));
+
+		this.fpsBasedMovement = worldObject.fpsBasedMovement;
+
+		this.worldWidth = worldObject.worldWidth;
+		this.worldHeight = worldObject.worldHeight;
+
+		this.blockSize = worldObject.blockSize;
+
+		this.islandRadius = worldObject.islandRadius;
+
+		// % Chance any entity will spawn per frame
+		this.difficulty = worldObject.difficulty;
+
+		// How much difficulty goes up per frame
+		this.difficultyIncrease = worldObject.difficultyIncrease;
+
+		// % Chance speed entity will spawn
+		this.speedSpawn = worldObject.speedSpawn;
+
+		// %% Chance tank entity will spawn
+		this.tankSpawn = worldObject.tankSpawn;
+
+		// % Chance archer entity will spawn
+		this.archerSpawn = worldObject.archerSpawn;
+
+		// How many entites spawn per wave and how many have spawned this wave
+		this.entitiesPerWave = worldObject.entitiesPerWave;
+		this.entitiesSpawned = worldObject.entitiesSpawned
+
+		// Wave number
+		this.wave = worldObject.wave;
+
+		// How many waves in between each interval
+		this.intervalNumber = worldObject.intervalNumber;
+
+		// How many frames in between each wave
+		this.intervalTime = worldObject.intervalTime;
+
+		// How many frames have passed during current interval
+		this.intervalFrames = worldObject.intervalFrames; 
+
+		// If interval is currently happenning
+		this.interval = worldObject.interval;
+
+		// How many more entities are spawned each wave
+		this.increasePerWave = worldObject.increasePerWave;
+
+		// How many entities are allowed in the world at once
+		this.entityLimiter = worldObject.entityLimiter;
+
+		// How many entities are currently on the screen
+		this.entityCounter = worldObject.entityCounter;
+
+		// On which side entities are spawned (0: top, 1: bottom, 2: left, 3: right)
+		this.spawnSide = worldObject.spawnSide;
+
+		// If world is being rendered every frame, false if player is not moving
+		this.updating = worldObject.updating; 
+
+		// Name of each block in world in 2d array
+		this.blockData = worldObject.blockData;
+
+		// A number associated with each block in 2d array to hold some attribute about the block
+		this.blockAttributes = worldObject.blockAttributes;
+
+		for (var x = 0; x < worldObject.entities.length; x++){
+			e = worldObject.entities[x];
+
+			// Archer
+			if (e.color == "rgb(176, 50, 255)"){
+				this.entities.push(new Archer(e.x, e.y, e.health, e.speed, e.rate, e.arrowSpeed, e.arrowDamage, e.scoreValue, e.color, this.entities.length, e.alive));
+			}else{
+				this.entities.push(new Entity(e.x, e.y, e.health, e.speed, e.attackValue, e.scoreValue, e.color, this.entities.length, e.alive));
+			}
+		}
+
+		world.render();
 	}
 }
